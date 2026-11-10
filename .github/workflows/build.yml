@@ -12,6 +12,11 @@ env:
   ARDUINOJSON_VERSION: 7.4.2
   BLESERIAL_VERSION: 3.0.0
 
+
+# The Release step creates GitHub releases
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -78,4 +83,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          # Versions below 1.0 and versions with a suffix (v1.2.0-rc1) are published as pre-releases
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') || contains(github.ref_name, '-') }}
+          generate_release_notes: true
           files: out/*
