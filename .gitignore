@@ -1,0 +1,6 @@
+build/
+*.o
+firmware/PostcardRTK/defaults_local.h
+firmware/PostcardRTK/web_page.h
+*.private.json
+postcardrtk-config*.json

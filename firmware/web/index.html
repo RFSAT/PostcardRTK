@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PostcardRTK</title>
+<style>
+/* Served by the device itself, often with no internet: system fonts only, no external files */
+:root{--bg:#eef1f2;--panel:#fff;--ink:#15211f;--muted:#5b6a68;--line:#d3dbda;--accent:#0b6e5f;--on:#fff;--ok:#1d7a3a;--warn:#a15c00;--err:#b3261e;--code:#0f1a19;--codeink:#cfe9e2;
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1514;--panel:#16201f;--ink:#e3ecea;--muted:#93a5a2;--line:#2a3836;--accent:#3fbfa6;--on:#06201b;--ok:#5cc97b;--warn:#e3a54a;--err:#ff8a80;--code:#081110;--codeink:#bfe6dc;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--sans)}
+header{display:flex;flex-wrap:wrap;gap:2px 14px;align-items:baseline;padding:8px 12px;border-bottom:2px solid var(--ink)}
+h1{margin:0;font-size:22px;letter-spacing:.02em}
+header small{color:var(--muted);font-family:var(--mono)}
+nav{display:flex;gap:4px;padding:6px 12px;overflow-x:auto}
+nav button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 10px;border-radius:4px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:var(--on)}
+main{max-width:none;margin:0;padding:4px 12px 24px;display:flex;flex-direction:column;gap:10px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+h2{margin:0 0 6px;font-size:16px}
+.hint{margin:0 0 8px;color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px 10px}
+.wide{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;min-width:0}
+label.check{flex-direction:row;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--ink);letter-spacing:0}
+input,select,textarea{font:14px var(--mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;width:100%}
+label.check input{width:auto}
+/* Same row = same height; caption on top, field at the bottom, so fields line up even when a caption wraps */
+.grid>label:not(.check){justify-content:space-between}
+.grid>label.check{align-self:end;min-height:30px}
+textarea{min-height:80px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{font:500 14px var(--sans);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:6px 12px;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+a.btn{text-decoration:none;display:inline-block}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on)}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:14px}
+.kv dt{color:var(--muted);white-space:nowrap} .kv dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tiles{display:grid;grid-template-columns:repeat(3,auto);gap:10px}
+/* Columns sized to their content: a short tile (Position) keeps its natural width, the others share the rest.
+   When space runs out, the longest values are cut with "…" (full value on hover) instead of pushing a tile to a new row. */
+.tiles section{min-width:0}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(2,auto)}.tiles section:last-child{grid-column:1/-1}}
+@media (max-width:600px){.tiles{grid-template-columns:minmax(0,1fr)}.tiles section:last-child{grid-column:auto}}
+.about{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 20px;align-items:start;padding-top:10px;padding-bottom:10px}
+.about h2{margin:0 0 4px}
+.about p{margin:0;line-height:1.45}
+.about .credit{border-left:3px solid var(--accent);padding-left:10px;font-size:13px;line-height:1.4;white-space:nowrap}
+.about .credit .hint{margin:2px 0 0;font-size:12px}
+.about a{color:var(--accent)}
+@media (max-width:700px){.about{grid-template-columns:1fr}.about .credit{white-space:normal}}
+/* Phones: thinner margins, same font sizes */
+@media (max-width:600px){header,nav{padding-left:8px;padding-right:8px}main{padding:4px 6px 16px;gap:8px}section{padding:8px}.grid{gap:6px 8px}.kv dt{white-space:normal}}
+.tbl{overflow-x:auto}
+.tbl table{border-collapse:collapse;width:100%}
+.tbl th{font:600 11px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:3px 4px;white-space:nowrap}
+.tbl td{padding:2px 4px;vertical-align:middle}
+.tbl td.n{font:600 13px var(--mono);color:var(--muted);white-space:nowrap}
+.tbl input,.tbl select{min-width:70px}
+.tbl td.c{text-align:center}
+.tbl input[type=checkbox]{width:auto;min-width:0}
+.tbl tr.active td.n{color:var(--accent)}
+.pill{display:inline-block;font:600 12px var(--mono);padding:2px 8px;border-radius:10px;border:1px solid currentColor}
+.q4{color:var(--ok)} .q5{color:var(--warn)} .q0,.q1,.q2{color:var(--err)}
+pre{margin:0;background:var(--code);color:var(--codeink);font:12.5px/1.5 var(--mono);padding:8px;border-radius:4px;overflow:auto;max-height:320px;white-space:pre-wrap}
+#msg{font:13px var(--mono)} #msg.err{color:var(--err)} #msg.ok{color:var(--ok)}
+[hidden]{display:none!important}
+/* Correction mode switch (Home) */
+.meth{border-collapse:collapse;width:100%;font-size:13px}
+.meth th{font:600 11px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:3px 8px 3px 0;white-space:nowrap}
+.meth td{padding:4px 8px 4px 0;border-top:1px solid var(--line);font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.meth td:first-child{font-family:var(--sans);font-weight:600}
+.meth tr.run td:first-child::before{content:"● ";color:var(--ok)}
+.meth tr.off td{color:var(--muted)}
+.kv.warn dd{color:var(--warn);font-weight:600}
+#restartInfo dd{white-space:normal;overflow:visible}
+.skygrid{display:grid;grid-template-columns:minmax(260px,420px) minmax(0,1fr);gap:16px 28px;align-items:start}
+@media (max-width:760px){.skygrid{grid-template-columns:1fr}}
+#skyPlot{width:100%;max-width:420px;display:block}
+#skyPlot text,#sigBars text{font:11px var(--sans);fill:var(--muted)}
+#skyPlot text.sat{fill:var(--ink);font-size:10px}
+#sigBars{height:210px;display:block}
+.skylegend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin-bottom:6px}
+.skylegend span i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+h3.sub{font:600 13px var(--sans);margin:12px 0 4px}
+tr.e6 td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.methbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px}
+.outline{margin:8px 0 0;font-size:13px}
+.stale{color:var(--warn);font-weight:600}
+#trace{width:100%;height:clamp(150px,24vh,300px);display:block;margin-top:8px}
+#trace text{font:11px var(--sans);fill:var(--muted)}
+.tw{overflow-x:auto}
+.modebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:600 14px var(--sans);border:0;background:var(--bg);color:var(--ink);padding:7px 14px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--on)}
+/* NMEA application profiles */
+.profiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:5px}
+.prof{text-align:left;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:4px 8px;cursor:pointer;display:flex;flex-direction:column;gap:0;min-width:0}
+.prof code{white-space:normal;overflow-wrap:anywhere} /* wraps onto the free lines of the card instead of being cut */
+.prof b{font-size:14px}
+.prof span{font-size:13px;color:var(--muted)}
+.prof code{font:12px var(--mono);color:var(--ink)}
+.prof[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.prof[aria-pressed=true] b{color:var(--accent)}
+.grp{font:600 11px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin:8px 0 4px}
+/* NMEA tab: group label beside its buttons, small gaps */
+.cgrp{display:grid;grid-template-columns:84px 1fr;gap:4px 8px;align-items:start;margin-top:6px}
+.cgrp .grp{margin:5px 0 0}
+[data-page=nmea] .chips{gap:4px}
+[data-page=nmea] .chip{padding:3px 9px}
+[data-page=nmea] h2{margin-bottom:4px}
+[data-page=nmea] .hint{margin-bottom:6px}
+.nctl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:8px}
+.nctl select{width:auto;padding:4px 6px}
+.nctl .btn{padding:5px 10px}
+@media (max-width:600px){.cgrp{grid-template-columns:1fr}.cgrp .grp{margin:2px 0 0}.profiles{grid-template-columns:1fr 1fr}.prof code{display:none}.prof b{font-size:13px;line-height:1.25}}
+/* NMEA type toggles */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 13px var(--mono);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:16px;padding:5px 11px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.chip small{font:400 11px var(--mono);color:var(--muted)}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on)}
+.chip[aria-pressed=true] small{color:var(--on);opacity:.8}
+.chip.unseen{border-style:dashed}
+/* Help tips: hover with a mouse, focus a field, or tap on a touch screen */
+[data-help]{cursor:help}
+input[data-help],select[data-help],textarea[data-help],button[data-help],.chip{cursor:auto}
+button[data-help],.chip,label.check[data-help]{cursor:pointer}
+dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+#tip{position:fixed;z-index:20;max-width:min(380px,calc(100vw - 16px));background:var(--ink);color:var(--bg);font:13px/1.45 var(--sans);padding:7px 10px;border-radius:5px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.25);text-transform:none;letter-spacing:0}
+#tip b{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<header><h1>PostcardRTK</h1><small id="hdr">connecting…</small></header>
+<nav role="tablist">
+  <button data-tab="status" aria-selected="true">Home</button>
+  <button data-tab="methods">Methods</button>
+  <button data-tab="sky">Sky</button>
+  <button data-tab="corr">Corrections</button>
+  <button data-tab="net">Wi-Fi &amp; outputs</button>
+  <button data-tab="nmea">NMEA</button>
+  <button data-tab="rx">Receiver</button>
+  <button data-tab="backup">System</button>
+</nav>
+<main>
+<div data-page="status">
+  <section class="about">
+    <div>
+      <h2>PostcardRTK · RTK GNSS rover</h2>
+      <p>SparkFun RTK Postcard (ESP32 with a Quectel LG290P quad-band receiver), running on its own from USB power. It picks the best positioning method by itself: RTK with corrections over Wi-Fi from up to four NTRIP sources (or from a phone app over Bluetooth), then Galileo HAS, then SBAS (EGNOS), then GNSS only, and checks regularly whether a better one has become available. NMEA goes to Bluetooth clients.</p>
+    </div>
+    <div class="credit">
+      <strong>RFSAT Limited</strong> · design and firmware<br>
+      Dublin · Athens · <a href="https://rfsat.com" target="_blank" rel="noopener">rfsat.com</a>
+      <div class="hint" data-help="Built with Arduino-ESP32, ESP-IDF and ArduinoJson. Developed with the help of Claude AI (Anthropic).">Arduino-ESP32, ArduinoJson · with Claude AI</div>
+    </div>
+  </section>
+  <section class="modebar">
+    <h2 style="margin:0">Corrections</h2>
+    <div class="seg" role="group" aria-label="Correction mode">
+      <button type="button" id="modeRtk" aria-pressed="false">Automatic</button>
+      <button type="button" id="modeHas" aria-pressed="false">Galileo HAS only</button>
+    </div>
+    <span class="hint" id="modeNote" style="margin:0"></span>
+  </section>
+  <div class="tiles">
+    <section><h2>Position</h2><dl class="kv" id="sGnss"></dl></section>
+    <section><h2>Corrections</h2><dl class="kv" id="sNtrip"></dl></section>
+    <section><h2>Links</h2><dl class="kv" id="sLinks"></dl></section>
+  </div>
+  <section><h2>Events</h2>
+    <p class="hint" style="margin:0 0 6px" data-help="Correction and system events, kept in the Postcard's flash across restarts and grouped by session (one session = from start-up to restart or power-off). Every event of the current session is kept; when the log is full (64 KB), the oldest earlier sessions are removed first. Written to flash every 30 s and at Restart / Shut down.">Newest first, grouped by session; kept across restarts.</p>
+    <p class="hint" id="lastGga" style="margin:0 0 6px;font-family:var(--mono);font-size:12px"></p>
+    <pre id="log">…</pre></section>
+</div>
+<div data-page="methods" hidden>
+  <section>
+    <h2>Positioning methods</h2>
+    <p class="hint" data-help="The LG290P computes one position at a time. When the method changes (RTK, SBAS, Galileo HAS, GNSS only), the stopped method's last figures stay here, marked with how long ago it stopped. Estimated accuracy is the receiver's own figure; actual error is measured against the reference point.">The receiver calculates one method at a time. Rows marked ● are running now; the others show their last figures before they stopped. Positions go to the apps exactly as the receiver computes them.</p>
+    <div class="tw"><table class="meth"><thead><tr><th>Method</th><th>Status</th><th data-help="Where the corrections in use come from and how old they are. Live = still arriving (RTCM in the last 5 s; HAS and EGNOS from the satellites). Stale = RTCM has stopped and the receiver is still using the last data it got, for up to about 2 minutes by default, while their age grows.">Corrections</th><th data-help="The receiver's own accuracy estimate, horizontal and vertical (PQTMPPPNAV for Galileo HAS, otherwise PQTMEPE or GST). For a stopped method: its last value.">Estimated H · V</th><th data-help="Distance of the reported position from the reference point, horizontal and vertical. Shown only once a reference point is recorded from an RTK fixed solution.">Actual error H · V</th><th data-help="Best (smallest) horizontal estimate during the latest run of this method.">Best estimate</th><th>Time</th></tr></thead><tbody id="methRows"></tbody></table></div>
+    <p class="outline" id="outLine"></p>
+    <div class="methbar">
+      <button type="button" class="btn" id="refSet" data-help="Records the current position as the reference point (the antenna's true position). Only from an RTK fixed solution, so the actual errors are measured against a centimetre-level point. Keep the antenna in the same place afterwards.">Set reference from RTK fix</button>
+      <button type="button" class="btn" id="refClear">Clear reference</button>
+      <span class="hint" id="refNote" style="margin:0"></span>
+    </div>
+    <div class="methbar" style="margin-top:10px">
+      <strong style="font-size:14px">Accuracy over time</strong>
+      <div class="seg" role="group" aria-label="Chart span" id="spanSeg">
+        <button type="button" data-span="1800">30 min</button><button type="button" data-span="7200">2 h</button><button type="button" data-span="21600">6 h</button><button type="button" data-span="86400">24 h</button>
+      </div>
+    </div>
+    <svg id="trace" role="img" aria-label="Accuracy over time"></svg>
+    <p class="hint" id="traceNote" style="margin:4px 0 0"></p>
+  </section>
+  <section>
+    <h2>History</h2>
+    <p class="hint">One record every 10 s (method, corrections live or stale with their age and base, estimate, actual error, position, speed, satellites, HDOP), kept in the Postcard's flash across restarts and power cuts. It is written to flash every 5 minutes and when you shut down or restart from this page, so pulling the power loses at most the last 5 minutes. When full, the oldest records go first.</p>
+    <dl class="kv" id="histInfo"></dl>
+    <div class="methbar">
+      <a class="btn primary" id="histDl" href="/api/history.csv" download data-help="Downloads the whole history as a CSV file (UTC date and time, uptime, method, corrections live/stale, correction age, base or EGNOS PRN, estimated and actual error in metres, latitude, longitude, altitude, speed, moving, satellites, HDOP). Restarts appear as 'restart' lines. While the file is sent, the correction stream and the Bluetooth/TCP links pause for a few seconds.">Download CSV</a>
+      <button type="button" class="btn" id="histClear">Clear history</button>
+      <span class="hint" id="histNote" style="margin:0"></span>
+    </div>
+  </section>
+</div>
+
+<div data-page="sky" hidden>
+  <section>
+    <h2>Sky and signals</h2>
+    <p class="hint" id="skyNote">Satellites in view from the receiver's GSV messages, and those used in the position from GSA.</p>
+    <div class="skygrid">
+      <svg id="skyPlot" viewBox="0 0 400 400" role="img" aria-label="Sky plot"></svg>
+      <div>
+        <div id="skyLegend" class="skylegend"></div>
+        <h3 class="sub" data-help="For each band: how many satellites of that system are tracked on it (C/N0 reported) out of those in view, and their mean and best C/N0. Galileo HAS is sent on E6, so the receiver needs E6 signals to use it.">Bands</h3>
+        <div class="tw"><table class="meth" id="bandTable"></table></div>
+        <p class="hint" id="e6Note" style="margin:6px 0 0"></p>
+      </div>
+    </div>
+    <h3 class="sub" data-help="C/N0 (carrier-to-noise density) of every signal, in dB-Hz: above about 40 is strong, 30-40 usable, below 30 weak. Bars of one satellite are its bands, from the highest frequency (left) down. Faded: the satellite is not used in the position.">Signal strength (C/N0)</h3>
+    <div class="tw"><svg id="sigBars" role="img" aria-label="Signal strength per satellite and band"></svg></div>
+    <p class="hint" style="margin:4px 0 0">One group per satellite, one bar per band (darkest = highest frequency, e.g. L1/E1/B1). Faded groups are not used in the position. Hover for values.</p>
+  </section>
+</div>
+
+<div data-page="corr" hidden>
+  <section>
+    <h2>Failover</h2>
+    <p class="hint">Sources are tried in order. A failure (no connection, no reply, rejected login or mount point, no RTCM for the timeout, or a correction age above the limit) moves to the next source. After every source has failed in a row the device waits (back-off) before starting again from source 1.</p>
+    <div class="grid">
+      <label class="check"><input type="checkbox" id="failover"> Failover between sources</label>
+      <label class="check"><input type="checkbox" id="galileoHas"> Galileo HAS fallback</label>
+      <label>Return to source 1 (s)<input type="number" id="failbackSec" min="0"></label>
+      <label>No-data timeout (s)<input type="number" id="dataTimeoutSec" min="5"></label>
+      <label>Max correction age (s)<input type="number" id="maxAgeSec" min="0"></label>
+      <label>GGA interval (s)<input type="number" id="ggaSec" min="1"></label>
+      <label>Back-off steps (s)<input id="backoffSec" placeholder="15,30,60,120,300"></label>
+      <label>Bench latitude (°)<input type="number" step="any" id="benchLat"></label>
+      <label>Bench longitude (°)<input type="number" step="any" id="benchLon"></label>
+      <label>Bench altitude (m)<input type="number" step="any" id="benchAlt"></label>
+    </div>
+    <p class="hint">0 turns off "Return to source 1" and "Max correction age". The bench position is sent to VRS and nearest-station casters while the receiver has no fix, so they start streaming; leave latitude and longitude at 0 to turn it off.</p>
+  </section>
+  <section>
+    <h2>Correction sources</h2>
+    <p class="hint">One row per source, in priority order. Leave the host empty to skip a source. The active source is highlighted.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Caster host</th><th>Port</th><th>Mount point</th><th>User</th><th>Password</th><th>GGA</th><th>NTRIP 2</th><th>TLS</th></tr></thead>
+      <tbody id="sources"></tbody>
+    </table></div>
+  </section>
+</div>
+
+<div data-page="net" hidden>
+  <section>
+    <h2>Wi-Fi networks</h2>
+    <p class="hint">Tried in order; the first in range is used. Without any, the device opens its setup access point.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>#</th><th>Network name (SSID)</th><th>Password</th></tr></thead>
+      <tbody id="wifi"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="scan" type="button">Scan</button><span class="hint" id="scanOut"></span></div>
+  </section>
+  <section>
+    <h2>Outputs</h2>
+    <div class="grid">
+      <label>Device name<input id="deviceName" maxlength="20"></label>
+      <label>Bluetooth<select id="bt"><option value="spp">Classic SPP (Android, Windows)</option><option value="ble">BLE UART (iOS)</option><option value="both">SPP + BLE (experimental)</option><option value="off">Off</option></select></label>
+      <label>NMEA TCP port (0 = off)<input type="number" id="tcpPort" min="0" max="65535"></label>
+      <label class="check"><input type="checkbox" id="usb"> USB: receiver stream and QGNSS bridge</label>
+      <label class="check"><input type="checkbox" id="inboundRtcm"> Accept RTCM from Bluetooth/TCP apps when NTRIP is idle</label>
+    </div>
+  </section>
+  <section>
+    <h2>Access</h2>
+    <div class="grid">
+      <label>Web login password (user admin)<input type="password" id="adminPass" autocomplete="new-password"></label>
+      <label>Setup access point password (8+)<input type="password" id="apPass" autocomplete="new-password"></label>
+    </div>
+  </section>
+</div>
+
+<div data-page="nmea" hidden>
+  <section>
+    <h2>Profiles and messages</h2>
+    <p class="hint">Pick a profile or press message types (hover or tap for details), then <b>Apply to receiver</b> and <b>Save and restart</b>. None selected = everything is sent. USB always carries the full stream.</p>
+    <div class="profiles" id="profiles"></div>
+    <div class="cgrp"><div class="grp">NMEA 0183</div><div class="chips" id="chipsStd"></div></div>
+    <div class="cgrp"><div class="grp">Quectel</div><div class="chips" id="chipsPq"></div></div>
+    <div class="cgrp" id="otherWrap" hidden><div class="grp">Other</div><div class="chips" id="chipsOther"></div></div>
+    <div class="nctl">
+      <select id="fixHz" aria-label="Fix rate"><option value="1">1 Hz</option><option value="2">2 Hz</option><option value="5">5 Hz</option><option value="10">10 Hz</option></select>
+      <button class="btn" id="nmeaApply" type="button">Apply to receiver</button>
+      <button class="btn" id="nmeaAll" type="button">Clear</button>
+      <span class="hint" id="nmeaBw" style="margin:0"></span>
+    </div>
+    <pre id="applyLog" hidden style="margin-top:6px;max-height:140px"></pre>
+  </section>
+  <section>
+    <div class="row" style="justify-content:space-between"><h2>Live output</h2><span class="row"><span class="hint" id="nmeaRate"></span><button class="btn" id="nmeaPause" type="button">Pause</button></span></div>
+    <pre id="nmeaText" style="max-height:max(150px,calc(60vh - 131px))">Waiting for data…</pre>
+  </section>
+</div>
+
+<div data-page="rx" hidden>
+  <section>
+    <h2>Receiver link</h2>
+    <div class="grid">
+      <label>UART speed (bit/s)<select id="uartBaud"><option>115200</option><option>230400</option><option>460800</option><option>921600</option></select></label>
+      <label class="wide">Commands sent at start-up (one per line, checksum added when missing)<textarea id="bootCmds" spellcheck="false"></textarea></label>
+    </div>
+  </section>
+  <section>
+    <h2>Send a command now</h2>
+    <p class="hint">Quectel PQTM commands, for example <code>$PQTMVERNO</code> (firmware version) or <code>$PQTMCFGPPP,R</code> (Galileo HAS setting). The reply appears below.</p>
+    <div class="row"><input id="cmd" placeholder="$PQTMVERNO" style="flex:1;min-width:0"><button class="btn" id="sendCmd" type="button">Send</button></div>
+  </section>
+  <section>
+    <h2>Receiver replies</h2>
+    <p class="hint">Answers to commands (OK, ERROR, version), newest last. They are kept here even when the NMEA stream is busy.</p>
+    <pre id="rxReplies" style="max-height:220px">No replies yet.</pre>
+  </section>
+</div>
+
+<div data-page="backup" hidden>
+  <section>
+    <h2>Settings file and power</h2>
+    <p class="hint">Download the full settings (with passwords) to copy one tested setup to every unit. Uploading replaces the settings and restarts the device.</p>
+    <div class="row">
+      <a class="btn" id="download" href="/api/config?secrets=1">Download settings</a>
+      <label class="btn" id="uploadLbl" style="text-transform:none;font-size:14px;letter-spacing:0;color:var(--ink)">Upload settings<input type="file" id="upload" accept=".json" hidden></label>
+      <button class="btn" id="reboot" type="button">Restart</button>
+      <button class="btn" id="shutdown" type="button">Shut down</button>
+      <button class="btn" id="factory" type="button">Restore defaults</button>
+    </div>
+  </section>
+  <section>
+    <h2>Last restart</h2>
+    <p class="hint" data-help="The firmware records which step each processor core is working on. If the Postcard crashes or hangs and the watchdog restarts it, the next start reports where the previous run stopped (and, for a crash, the code address). Send this line with any fault report.">Why the previous run ended, recorded by the firmware.</p>
+    <dl class="kv" id="restartInfo"></dl>
+  </section>
+</div>
+
+<div class="row" id="saveBar" hidden><button class="btn primary" id="save" type="button">Save and restart</button><span id="msg"></span></div>
+</main>
+
+<div id="tip" role="tooltip" hidden></div>
+<script>
+const $=id=>document.getElementById(id);
+let curMode="rtk", rxVisible=false, skyVisible=false;
+async function repliesPoll(once){
+  if(!rxVisible&&!once) return;
+  try{const d=await (await fetch("/api/nmea")).json();const r=d.replies||[];if(r.length){const el=$("rxReplies");el.textContent=r.join("\n");el.scrollTop=el.scrollHeight}}catch(e){}
+  if(!once) setTimeout(repliesPoll,1500);
+}
+let cfg=null, nmeaVisible=false, nmeaPaused=false, nmeaSel=new Set(), nmeaCounts={};
+const TYPES={base:"Own base",vrs:"VRS",near:"Nearest station",other:"Other"};
+
+// Tabs
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  document.querySelectorAll("[data-page]").forEach(p=>p.hidden=p.dataset.page!==b.dataset.tab);
+  $("saveBar").hidden=!["corr","net","rx","nmea"].includes(b.dataset.tab);
+  if(b.dataset.tab==="methods"){drawTrace();histInfo()}
+  skyVisible=b.dataset.tab==="sky"; if(skyVisible) skyPoll();
+  rxVisible=b.dataset.tab==="rx"; if(rxVisible) repliesPoll();
+  nmeaVisible=b.dataset.tab==="nmea"; if(nmeaVisible){nmeaPoll(); if(!readFixRate.done){readFixRate.done=1;readFixRate()}}
+});
+
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function kv(el,rows){el.innerHTML=rows.map(([k,v])=>`<dt${KVHELP[k]?` data-help="${esc(KVHELP[k])}"`:""}>${esc(k)}</dt><dd title="${esc(String(v).replace(/<[^>]*>/g,""))}">${v}</dd>`).join("")}
+function msg(t,c){const m=$("msg");m.textContent=t;m.className=c||""}
+
+async function status(){
+  try{
+    const s=await (await fetch("/api/status")).json();
+    kv($("restartInfo"),[["Reset reason",s.lastReset||"?"],["Previous run",esc(s.previousRun||"–")]]);
+    $("restartInfo").classList.toggle("warn",!!s.previousRunProblem);
+    $("hdr").textContent=`v${s.version}${s.privateDefaults?" (private build)":""} · ${s.wifi.mode} ${s.wifi.ssid||""} ${s.wifi.ip} · up ${Math.floor(s.uptimeSec/60)} min · last reset: ${s.lastReset||"?"}`;
+    const g=s.gnss;
+    curMode=s.mode||"rtk";
+    $("modeRtk").setAttribute("aria-pressed",curMode==="rtk");$("modeHas").setAttribute("aria-pressed",curMode==="has");
+    const P=s.ppp, SOL={0:"no fix",1:"single",2:"SBAS",5:"DGNSS",6:"converging",7:"converged",8:"RTK float",12:"RTK fixed"};
+    const hasFix=g.station===9002||(P&&P.diffId===9002&&(P.sol===6||P.sol===7));
+    // Which positioning method the receiver is using, from GGA quality, its base station id and the PPP status
+    const q=g.quality, st=g.station, ntripOn=s.ntrip.state==="streaming", appRtcm=!ntripOn&&s.outputs.inboundFrames>0;
+    const rtcm=ntripOn?"NTRIP · "+s.ntrip.sourceName:appRtcm?"RTCM from a Bluetooth/TCP app":"RTCM corrections";
+    let fixLabel, fixFrom;
+    if(q==null){fixLabel="no data";fixFrom="no NMEA from the receiver"}
+    else if(hasFix){const conv=(P&&P.sol===7)||(!P&&q===4);fixLabel=conv?"HAS converged":"HAS converging";fixFrom="Galileo HAS satellites (E6) · station 9002"}
+    else if(q===4){fixLabel="RTK fixed";fixFrom=rtcm+(st>=0?" · base "+st:"")}
+    else if(q===5){fixLabel="RTK float";fixFrom=rtcm+(st>=0?" · base "+st:"")}
+    else if(q===2){
+      const sbasPrn=st>=120&&st<=158;
+      if(st>=0&&!(sbasPrn&&!ntripOn&&!appRtcm)){fixLabel="DGNSS (RTCM)";fixFrom=rtcm+" · base "+st}
+      else{fixLabel="SBAS (EGNOS)";fixFrom="EGNOS satellites"+(sbasPrn?" · PRN "+st:"")+", about 1 m"}}
+    else if(q===1){fixLabel="GNSS only";fixFrom="no corrections, 1-3 m"}
+    else if(q===0){fixLabel="No fix";fixFrom="waiting for satellites"}
+    else if(q===6){fixLabel="Dead reckoning";fixFrom="no satellites"}
+    else{fixLabel=g.qualityName;fixFrom="–"}
+    if(s.methods&&q!=null){fixLabel=s.methods.current;
+      const RG=s.methods.groups.find(x=>x.running), C=RG&&RG.corr;
+      if(C&&RG.name.startsWith("RTK")&&!C.live){fixLabel+=" (stale corrections)";fixFrom=`none arriving · last RTCM from base ${C.station??"?"}, ${Math.round(C.age??0)} s old`}}
+    const m2=v=>v==null||v<0?"–":(v<0.1?(v*100).toFixed(1)+" cm":v<1?(v*100).toFixed(0)+" cm":v.toFixed(2)+" m");
+    const acc=g.epeH!=null?`${m2(g.epeH)} H · ${m2(g.epeV)} V`:g.gstH!=null?`${m2(g.gstH)} H · ${m2(g.gstV)} V`:"–";
+    const hasRow=P?`${SOL[P.sol]??("type "+P.sol)}${P.h!=null?" · "+m2(P.h):""}${P.age>=0?" · "+P.age.toFixed(0)+" s old":""}`
+      :(curMode==="has"?"no status (PPP?)":"–");
+    $("modeNote").textContent=curMode==="has"
+      ? "Galileo HAS from the satellites, no internet needed: about 20 cm after it converges (several minutes)."+(hasFix?" HAS solution active.":" Waiting for the HAS solution.")
+      : (s.ladder?`${s.ladder.state}: ${s.ladder.reason}`:"Automatic: RTK when corrections are available, then Galileo HAS, SBAS, GNSS only.");
+    kv($("sGnss"),[
+      ["Fix",`<span class="pill q${g.quality??0}">${esc(fixLabel)}</span>`],["Corrections from",esc(fixFrom)],
+      ["Accuracy (estimated)",acc],["Galileo HAS",esc(hasRow)],
+      ["Satellites",g.sats??"–"],["HDOP",g.hdop??"–"],
+      ["Latitude",g.lat??"–"],["Longitude",g.lon??"–"],["Altitude",g.alt!=null?g.alt.toFixed(3)+" m":"–"],
+      ["Correction age",g.age>=0?g.age.toFixed(1)+" s":"–"],["Base station",g.station===9002?"9002 · Galileo HAS":g.station>=0?g.station:(fixLabel.startsWith("SBAS")?"none (SBAS)":"–")],["UTC",g.utc||"–"]]);
+    const n=s.ntrip;
+    kv($("sNtrip"),[
+      ["State",esc(n.state)],["Source",`${n.source} · ${esc(n.sourceName)}`],["Caster",esc(n.host)+"/"+esc(n.mount)],
+      ["On stream",n.streamSec+" s"],["Last frame",n.lastFrameAgoMs!=null?(n.lastFrameAgoMs/1000).toFixed(1)+" s ago":"–"],
+      ["Bytes on stream",n.streamBytes],["Frames / CRC errors",n.frames+" / "+n.crcErrors],
+      ["GGA sent",n.ggaSent+(n.lastGga?" · "+esc((n.lastGga.split(",")[1]||"").slice(0,6))+" UTC":"")],["Base id (1005)",n.stationId>=0?n.stationId:"–"],
+      ["Failovers",n.switches],["Last event",esc(n.lastEvent)]]);
+    const o=s.outputs,u=s.uart;
+    kv($("sLinks"),[
+      ["Bluetooth",`${esc(s.bluetoothName)} (${o.bt}) ${o.spp?"SPP connected":""} ${o.ble?"BLE connected":""}`],
+      ["TCP clients",o.tcpPort?`${o.tcpClients} on port ${o.tcpPort}`:"off"],
+      ["Wi-Fi signal",s.wifi.rssi?s.wifi.rssi+" dBm":"–"],
+      ["Receiver UART",`${u.baud} bit/s · rx ${u.rxBytes} B · tx ${u.txBytes} B`],
+      ["NMEA good / bad",u.nmeaGood+" / "+u.nmeaBad],["Dropped (queues full)",u.drops]]);
+    document.querySelectorAll("#sources tr").forEach((el,i)=>el.classList.toggle("active",i===n.source-1));
+    renderMethods(s);
+    $("lastGga").textContent=n.lastGga?"Last GGA sent to the caster: "+n.lastGga:"";
+    if(s.eventSeq!==logSeq){logSeq=s.eventSeq;renderLog(await (await fetch("/api/log")).text())}
+  }catch(e){$("hdr").textContent="device not reachable"}
+}
+
+function sourceCard(s,i){
+  return `<tr><td class="n">${i+1}</td>
+    <td><input id="s${i}name" value="${esc(s.name)}"></td>
+    <td><select id="s${i}type">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${s.type===k?" selected":""}>${v}</option>`).join("")}</select></td>
+    <td><input id="s${i}host" value="${esc(s.host)}" placeholder="empty = skip" style="min-width:150px"></td>
+    <td><input type="number" id="s${i}port" value="${s.port||2101}" style="width:80px"></td>
+    <td><input id="s${i}mount" value="${esc(s.mount)}"></td>
+    <td><input id="s${i}user" value="${esc(s.user)}" autocomplete="off"></td>
+    <td><input type="password" id="s${i}pass" value="${esc(s.pass)}" autocomplete="new-password"></td>
+    <td class="c"><input type="checkbox" id="s${i}gga"${s.gga?" checked":""} title="Send position (GGA)"></td>
+    <td class="c"><input type="checkbox" id="s${i}v2"${s.v2?" checked":""} title="NTRIP 2.0"></td>
+    <td class="c"><input type="checkbox" id="s${i}tls"${s.tls?" checked":""} title="TLS"></td></tr>`;
+}
+
+async function loadConfig(){
+  cfg=await (await fetch("/api/config")).json();
+  const f=cfg.failover,o=cfg.outputs,r=cfg.receiver;
+  $("failover").checked=f.enabled;$("galileoHas").checked=(cfg.corrections||{}).galileoHas!==false;$("failbackSec").value=f.failbackSec;$("dataTimeoutSec").value=f.dataTimeoutSec;
+  $("maxAgeSec").value=f.maxAgeSec;const bp=cfg.benchPosition||{};$("benchLat").value=bp.lat||0;$("benchLon").value=bp.lon||0;$("benchAlt").value=bp.alt||0;$("ggaSec").value=f.ggaSec;$("backoffSec").value=f.backoffSec.join(",");
+  $("sources").innerHTML=cfg.ntrip.map(sourceCard).join("");
+  let w="";for(let i=0;i<4;i++){const n=cfg.wifi[i]||{};w+=`<tr><td class="n">${i+1}</td><td><input id="w${i}ssid" value="${esc(n.ssid)}" placeholder="SSID"></td><td><input type="password" id="w${i}pass" value="${esc(n.pass)}" autocomplete="new-password"></td></tr>`}
+  $("wifi").innerHTML=w;
+  $("deviceName").value=cfg.deviceName;$("bt").value=o.bt;$("tcpPort").value=o.tcpPort;$("usb").checked=o.usb;$("inboundRtcm").checked=o.inboundRtcm;
+  $("adminPass").value=cfg.web.adminPass;$("apPass").value=cfg.web.apPass;
+  nmeaSel=new Set((o.nmeaTypes||[]).map(t=>t.toUpperCase()));renderChips();
+  $("uartBaud").value=String(r.uartBaud);$("bootCmds").value=(r.bootCmds||[]).join("\n");
+}
+
+function collect(){
+  const ntrip=[];for(let i=0;i<4;i++)ntrip.push({name:$(`s${i}name`).value.trim(),type:$(`s${i}type`).value,host:$(`s${i}host`).value.trim(),
+    port:+$(`s${i}port`).value||2101,mount:$(`s${i}mount`).value.trim(),user:$(`s${i}user`).value.trim(),pass:$(`s${i}pass`).value,
+    gga:$(`s${i}gga`).checked,v2:$(`s${i}v2`).checked,tls:$(`s${i}tls`).checked});
+  const wifi=[];for(let i=0;i<4;i++){const s=$(`w${i}ssid`).value.trim();if(s)wifi.push({ssid:s,pass:$(`w${i}pass`).value})}
+  const backoff=$("backoffSec").value.split(/[ ,;]+/).map(Number).filter(n=>n>0).slice(0,5);
+  return {deviceName:$("deviceName").value.trim(),web:{adminPass:$("adminPass").value,apPass:$("apPass").value},wifi,ntrip,
+    failover:{enabled:$("failover").checked,failbackSec:+$("failbackSec").value,retryMs:cfg.failover.retryMs,backoffSec:backoff.length?backoff:[15,30,60,120,300],
+      dataTimeoutSec:+$("dataTimeoutSec").value,maxAgeSec:+$("maxAgeSec").value,ggaSec:+$("ggaSec").value},
+    benchPosition:{lat:+$("benchLat").value||0,lon:+$("benchLon").value||0,alt:+$("benchAlt").value||0},
+    outputs:{bt:$("bt").value,usb:$("usb").checked,tcpPort:+$("tcpPort").value,inboundRtcm:$("inboundRtcm").checked,
+      nmeaTypes:[...nmeaSel]},
+    corrections:{mode:(cfg.corrections||{}).mode||"rtk",galileoHas:$("galileoHas").checked},
+    receiver:{uartBaud:+$("uartBaud").value,bootCmds:$("bootCmds").value.split("\n").map(s=>s.trim()).filter(Boolean)}};
+}
+
+function check(c){
+  for(const [i,s] of c.ntrip.entries()) if(s.host&&!s.mount) return `Source ${i+1}: add a mount point or clear the host.`;
+  if(c.corrections.mode!=="has"&&!c.ntrip.some(s=>s.host&&s.mount)) return "Add at least one correction source.";
+  if(c.web.apPass.length<8) return "The access point password needs 8 or more characters.";
+  return "";
+}
+
+async function post(body){
+  const r=await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body});
+  const t=await r.text(); if(!r.ok) throw new Error(t); return t;
+}
+$("save").onclick=async()=>{
+  const c=collect(),e=check(c); if(e){msg(e,"err");return}
+  if(!confirm("Save the settings and restart the Postcard now?\n\nThe correction stream and Bluetooth/TCP links drop for about 20 s."))return;
+  try{msg(await post(JSON.stringify(c)),"ok");setTimeout(()=>location.reload(),9000)}catch(x){msg(x.message,"err")}
+};
+$("upload").onchange=ev=>{const f=ev.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=async()=>{if(!confirm("Replace all settings with "+f.name+" and restart the Postcard?")){ev.target.value="";return}try{JSON.parse(rd.result);$("saveBar").hidden=false;msg(await post(rd.result),"ok");setTimeout(()=>location.reload(),9000)}catch(x){$("saveBar").hidden=false;msg("Upload failed: "+x.message,"err")}};rd.readAsText(f)};
+$("shutdown").onclick=async()=>{
+  if(!confirm("Shut down the Postcard?\n\nIt closes the correction stream and the Bluetooth/TCP links, switches the radio off and halts. Unplug it after that. To start it again, power it up or press reset."))return;
+  const r=await fetch("/api/shutdown",{method:"POST"});$("saveBar").hidden=false;msg(await r.text(),r.ok?"ok":"err");
+};
+// NMEA monitor, message catalogue, application profiles
+// Output messages of the LG290P (03) that can be switched with $PQTMCFGMSGRATE (protocol spec v1.1, table 6).
+// ver = message version for PQTM messages; bytes = rough sentence size for the bandwidth estimate.
+const CATALOG=[
+  {id:"GGA",bytes:95,info:"Fix data: UTC time, position, fix quality (4 = RTK fixed, 5 = RTK float), satellites used, HDOP, altitude, correction age and base station id. Needed by almost every app and by VRS/nearest-station casters. Always kept on in the receiver because the Postcard uses it."},
+  {id:"RMC",bytes:80,info:"Recommended minimum: UTC time and date, position, speed and course over ground. Most navigation and mapping apps need it for the date."},
+  {id:"VTG",bytes:50,info:"Course and speed over ground (km/h and knots). Used by guidance and auto-steer software (e.g. AgOpenGPS) and by chart plotters."},
+  {id:"GST",bytes:70,info:"Accuracy estimate: standard deviation of latitude, longitude and altitude in metres. Survey and field apps show accuracy from it; ROS uses it for the covariance."},
+  {id:"GSA",bytes:390,hz1:true,info:"DOP values (PDOP, HDOP, VDOP) and the satellites used in the fix, one sentence per constellation. Output at 1 Hz whatever the fix rate."},
+  {id:"GSV",bytes:2800,hz1:true,info:"Satellites in view: elevation, azimuth and signal strength per satellite and band. By far the largest message; needed only for sky plots and signal views. Output at 1 Hz whatever the fix rate."},
+  {id:"GLL",bytes:55,info:"Latitude, longitude and UTC time only. Older format, still expected by some marine instruments."},
+  {id:"GNS",bytes:95,info:"Multi-constellation fix data with a mode letter per constellation; an alternative to GGA."},
+  {id:"GBS",bytes:70,info:"Satellite fault detection (RAIM): expected errors in latitude, longitude and altitude, and the most likely failed satellite. For integrity monitoring."},
+  {id:"ZDA",bytes:40,info:"UTC date and time with time-zone fields. For time synchronisation and data loggers."},
+  {id:"PQTMEPE",ver:2,bytes:50,info:"Estimated position error north, east, down, 2D and 3D in metres. A direct accuracy figure for monitoring and logging."},
+  {id:"PQTMVEL",ver:1,bytes:95,info:"Velocity north, east and down, 2D and 3D speed, course, and their accuracies (m/s, degrees). For vehicle dynamics and machine control."},
+  {id:"PQTMPVT",ver:1,bytes:150,info:"Position, velocity and time in one sentence: time of week, date, fix type, satellites, leap seconds, position, velocities, heading, HDOP and PDOP."},
+  {id:"PQTMNAV",ver:1,bytes:230,info:"Full navigation solution: time status, position with standard deviations, velocities, DOPs and satellites in view/used. Most complete single message for research."},
+  {id:"PQTMDOP",ver:1,bytes:70,info:"All dilution-of-precision values: GDOP, PDOP, TDOP, VDOP, HDOP, NDOP, EDOP."},
+  {id:"PQTMPL",ver:1,bytes:100,info:"Protection levels for position (N, E, D), velocity and time at a stated probability. For integrity-critical uses."},
+  {id:"PQTMODO",ver:1,bytes:40,info:"Odometer: distance travelled in metres since it was enabled or reset. Applying a profile with it enables the odometer, starting from 0."},
+  {id:"PQTMEOE",ver:1,bytes:55,info:"End of epoch: marks the last sentence of each fix, so a parser knows a complete set has arrived."},
+  {id:"PQTMGEOFENCESTATUS",ver:1,bytes:40,info:"Geofence status (inside/outside) for geofences set with $PQTMCFGGEOFENCE."},
+  {id:"PQTMTXT",ver:1,bytes:40,info:"Short text messages from the receiver (notices and warnings)."}];
+const CAT=Object.fromEntries(CATALOG.map(m=>[m.id,m]));
+const PROFILES=[
+  {name:"Survey and GIS",hz:1,msgs:["GGA","RMC","GST","GSA","GSV"],use:"Static points and walking surveys: SW Maps, QField, Emlid Flow, ArcGIS Field Maps, Mobile Topographer."},
+  {name:"Static monitoring",hz:1,msgs:["GGA","GST","ZDA","GBS","PQTMEPE","PQTMDOP"],use:"Fixed points over hours or days: deformation, benchmark checks, position averaging, accuracy logging."},
+  {name:"Agriculture and machine guidance",hz:10,msgs:["GGA","VTG"],use:"Tractor guidance and auto-steer (AgOpenGPS and similar): position and course at 10 Hz with low latency."},
+  {name:"Road vehicles and fleet",hz:5,msgs:["GGA","RMC","VTG","GST","PQTMVEL","PQTMODO"],use:"Vehicle tracking, telematics, road surveys and distance measurement: position, speed, course and odometer."},
+  {name:"Robots and drones",hz:10,msgs:["GGA","RMC","VTG","GST"],use:"ROS nmea_navsat_driver, ArduPilot NMEA input, rovers and mowers: fast position with an accuracy estimate."},
+  {name:"Marine and chart plotters",hz:1,msgs:["GGA","RMC","GLL","VTG","GSA","GSV","ZDA"],use:"OpenCPN, chart plotters and NMEA 0183 instruments: the classic navigation set with satellite view."},
+  {name:"Time synchronisation",hz:1,msgs:["GGA","RMC","ZDA"],use:"gpsd/chrony and data loggers: UTC date and time. Wire the PPS pin for sub-microsecond timing."},
+  {name:"Minimal (BLE, slow links)",hz:1,msgs:["GGA","RMC"],use:"Lowest bandwidth: iPhone/iPad over BLE, radio links, long recordings."},
+  {name:"Research and integrity",hz:1,msgs:["GGA","RMC","GST","GSA","GSV","GBS","PQTMNAV","PQTMEPE","PQTMDOP","PQTMPL","PQTMVEL","PQTMPVT"],use:"Full diagnostics for evaluation and integrity studies: error estimates, protection levels, DOPs, velocities, RAIM. Use SPP or TCP, not BLE."}];
+function nmeaHelp(id){const m=CAT[id];return `<b>${esc(id)}</b> · ${esc(m?m.info:"Not in the built-in list; see the LG290P protocol specification.")}`}
+function chipHtml(id){const c=nmeaCounts[id];return `<button type="button" class="chip${c==null?" unseen":""}" data-t="${esc(id)}" aria-pressed="${nmeaSel.has(id)}">${esc(id)}<small>${c==null?"–":c}</small></button>`}
+function renderChips(){
+  $("chipsStd").innerHTML=CATALOG.filter(m=>!m.ver).map(m=>chipHtml(m.id)).join("");
+  $("chipsPq").innerHTML=CATALOG.filter(m=>m.ver).map(m=>chipHtml(m.id)).join("");
+  const other=[...new Set([...Object.keys(nmeaCounts),...nmeaSel])].filter(id=>!CAT[id]);
+  $("chipsOther").innerHTML=other.map(chipHtml).join(""); $("otherWrap").hidden=!other.length;
+  document.querySelectorAll("[data-page=nmea] .chip").forEach(b=>{b.dataset.help=nmeaHelp(b.dataset.t);
+    b.onclick=()=>{const t=b.dataset.t;nmeaSel.has(t)?nmeaSel.delete(t):nmeaSel.add(t);b.setAttribute("aria-pressed",nmeaSel.has(t));nmeaSelText()}});
+  nmeaSelText();
+}
+function renderProfiles(){
+  $("profiles").innerHTML=PROFILES.map((p,i)=>`<button type="button" class="prof" data-p="${i}" aria-pressed="false" data-help="${esc("<b>"+esc(p.name)+"</b> · "+esc(p.use)+" Messages: "+p.msgs.join(", ")+" at "+p.hz+" Hz.")}"><b>${esc(p.name)}</b><code>${p.hz} Hz · ${p.msgs.join(" ")}</code></button>`).join("");
+  $("profiles").querySelectorAll(".prof").forEach(b=>b.onclick=()=>{const p=PROFILES[+b.dataset.p];nmeaSel=new Set(p.msgs);$("fixHz").value=String(p.hz);renderChips()});
+}
+function bandwidth(){
+  const hz=+$("fixHz").value, ids=nmeaSel.size?[...nmeaSel]:CATALOG.filter(m=>nmeaCounts[m.id]!=null).map(m=>m.id);
+  return ids.reduce((a,id)=>{const m=CAT[id];return a+(m?m.bytes*(m.hz1?1:hz):80*hz)},0);
+}
+function nmeaSelText(){
+  const bw=bandwidth(), kb=(bw/1000).toFixed(bw<10000?1:0);
+  $("nmeaBw").textContent=(nmeaSel.size?"":"All types · ")+`≈ ${kb} kB/s · `+(bw<=2000?"OK for BLE, SPP, TCP":bw<=20000?"SPP/TCP only, too much for BLE":"too much for Bluetooth");
+  const hz=$("fixHz").value, key=[...nmeaSel].sort().join();
+  $("profiles").querySelectorAll(".prof").forEach(b=>{const p=PROFILES[+b.dataset.p];b.setAttribute("aria-pressed",String(p.hz)===hz&&[...p.msgs].sort().join()===key)});
+}
+$("fixHz").onchange=nmeaSelText;
+$("nmeaAll").onclick=()=>{nmeaSel.clear();renderChips()};
+let replySeq=0;
+async function nmeaPoll(){
+  if(!nmeaVisible) return;
+  try{
+    const d=await (await fetch("/api/nmea")).json();
+    replySeq=d.replySeq||0;
+    const before=Object.keys(nmeaCounts).join();
+    d.types.forEach(t=>nmeaCounts[t.id]=t.count);
+    if(Object.keys(nmeaCounts).join()!==before) renderChips();
+    else document.querySelectorAll("[data-page=nmea] .chip").forEach(b=>{const c=nmeaCounts[b.dataset.t];if(c!=null)b.querySelector("small").textContent=c});
+    if(!nmeaPaused){const pre=$("nmeaText");pre.textContent=d.text||"Nothing sent yet (no receiver data, or everything filtered out).";pre.scrollTop=pre.scrollHeight}
+    $("nmeaRate").textContent="Active now: "+(d.filter||"all types");
+  }catch(e){}
+  setTimeout(nmeaPoll,1000);
+}
+// Configure the LG290P: every catalogue message on/off on the Postcard's UART, fix rate, odometer, save, reset
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function sendCmd(c){const r=await fetch("/api/cmd",{method:"POST",body:c});if(!r.ok)throw new Error(await r.text())}
+$("nmeaApply").onclick=async()=>{
+  const hz=+$("fixHz").value, on=new Set(nmeaSel.size?nmeaSel:CATALOG.map(m=>m.id)); on.add("GGA");
+  const cmds=CATALOG.map(m=>`$PQTMCFGMSGRATE,W,${m.id},${on.has(m.id)?1:0}${m.ver?","+m.ver:""}`);
+  cmds.push(`$PQTMCFGFIXRATE,W,${Math.round(1000/hz)}`);
+  if(on.has("PQTMODO")&&nmeaSel.size) cmds.push("$PQTMCFGODO,W,1,0");
+  cmds.push("$PQTMSAVEPAR");
+  if(!confirm(`Configure the LG290P now?\n\nOn: ${[...on].join(", ")}\nOff: every other message in the list\nFix rate: ${hz} Hz\n\nThe settings are saved in the receiver, which then restarts (a few seconds without position).`))return;
+  const log=$("applyLog");log.hidden=false;log.textContent="";const add=t=>{log.textContent+=t+"\n";log.scrollTop=log.scrollHeight};
+  $("nmeaApply").disabled=true;
+  try{
+    const d0=await (await fetch("/api/nmea")).json(), start=d0.replySeq||0;
+    for(const c of cmds){add("→ "+c);await sendCmd(c);await sleep(c.includes("SAVEPAR")?1200:150)}
+    const d=await (await fetch("/api/nmea")).json(), n=(d.replySeq||0)-start, got=(d.replies||[]).slice(-Math.min(n,(d.replies||[]).length));
+    got.forEach(r=>add("← "+r));
+    const ok=got.filter(r=>/,OK[,*]/.test(r)).length, err=got.filter(r=>r.includes(",ERROR")).length;
+    if(!n){add("No reply from the receiver: check that it is connected and that the UART speed matches. Nothing was changed.");return}
+    await sendCmd("$PQTMSRR");add("→ $PQTMSRR (receiver restarts)");
+    add(`Receiver confirmed ${ok} of ${cmds.length} settings${err?`, ${err} rejected (see above)`:""}.`);
+    add("Now press Save and restart so the Postcard sends the selected types to Bluetooth and TCP.");
+    $("saveBar").hidden=false;msg("Receiver configured. Press Save and restart to store the Bluetooth/TCP selection.","ok");
+  }catch(x){add("Failed: "+x.message)}
+  finally{$("nmeaApply").disabled=false}
+};
+// Read the receiver's current fix rate when the page opens
+async function readFixRate(){
+  try{const d0=await (await fetch("/api/nmea")).json();await sendCmd("$PQTMCFGFIXRATE,R");await sleep(700);
+    const d=await (await fetch("/api/nmea")).json();if((d.replySeq||0)===(d0.replySeq||0))return;
+    const r=(d.replies||[]).reverse().find(x=>x.startsWith("$PQTMCFGFIXRATE,OK,"));
+    if(r){const ms=parseInt(r.split(",")[2]),hz=Math.round(1000/ms);if([1,2,5,10].includes(hz)){$("fixHz").value=String(hz);nmeaSelText()}}
+  }catch(e){}
+}
+renderProfiles();
+$("nmeaPause").onclick=()=>{nmeaPaused=!nmeaPaused;$("nmeaPause").textContent=nmeaPaused?"Resume":"Pause"};
+// ---- Events (from /api/log): newest first, grouped by session ----
+let logSeq=-1;
+const hms=s=>[s/3600|0,(s/60|0)%60,s%60].map(v=>String(v).padStart(2,"0")).join(":");
+function renderLog(txt){
+  const ses=new Map(); let cur=0;
+  for(const ln of txt.split("\n")){if(!ln)continue;const f=ln.split("\t");
+    if(f[0]==="C"){cur=+f[1];continue}
+    const n=+f[1];if(!ses.has(n))ses.set(n,{fw:"",ev:[],dropped:0});const S=ses.get(n);
+    if(f[0]==="S")S.fw=f[2]||"";else if(f[0]==="D")S.dropped=+f[2];
+    else if(f[0]==="E")S.ev.push({up:+f[2],utc:f[3]==="-"?0:+f[3],msg:f.slice(4).join(" ")})}
+  const out=[];
+  for(const n of [...ses.keys()].sort((a,b)=>b-a)){const S=ses.get(n);
+    const first=S.ev.find(e=>e.utc), start=first?new Date((first.utc-first.up)*1000).toISOString().slice(0,16).replace("T"," ")+" UTC":"";
+    out.push(`── ${n===cur?"This session":"Session "+n}${start?", started "+start:""}${S.fw?" · firmware "+S.fw:""} ──`);
+    for(const e of S.ev.slice().reverse())out.push(`${e.utc?new Date(e.utc*1000).toISOString().slice(11,19)+" UTC":"        –   "}  up ${hms(e.up)}  ${e.msg}`);
+    if(S.dropped)out.push(`(${S.dropped} earlier events of this session removed: log full)`);
+    out.push("")}
+  const el=$("log"), top=el.scrollTop, h=el.scrollHeight;
+  el.textContent=out.join("\n").trim()||"No events yet";
+  if(top>0)el.scrollTop=top+(el.scrollHeight-h); // stay on what you were reading while new events arrive on top
+}
+
+// ---- Methods panel ----
+const METHCOL={0:"#9aa5a3",1:"#9aa5a3",2:"#d39b2a",3:"#6a8fd6",4:"#3aa0c8",5:"#1d7a3a",6:"#8e6bd6",7:"#5b3fb0",8:"#9aa5a3"};
+const METHNAME={0:"No fix",1:"GNSS only",2:"SBAS (EGNOS)",3:"DGNSS (RTCM)",4:"RTK float",5:"RTK fixed",6:"HAS converging",7:"HAS converged",8:"Dead reckoning"};
+const mfmt=v=>v==null||v<0?"–":(v<0.1?(v*100).toFixed(1)+" cm":v<1?(v*100).toFixed(0)+" cm":v.toFixed(2)+" m");
+const dur=t=>t<60?t+" s":t<3600?Math.floor(t/60)+" min "+(t%60)+" s":Math.floor(t/3600)+" h "+Math.floor(t%3600/60)+" min";
+let lastTrace=0;
+function renderMethods(s){
+  const M=s.methods; if(!M) return;
+  const rows=M.groups.filter(g=>g.seen).map(g=>{
+    const sub=g.last!==g.name?` · ${g.running?"":"last "}${esc(g.last)}`:"";
+    const st=(g.running?"running":"stopped")+sub;
+    const C=g.corr||{}, age=C.age!=null?(C.age<10?C.age.toFixed(1):Math.round(C.age))+" s":"";
+    let cor="none";
+    if(g.name.startsWith("RTK")) cor=(C.live?"live":`<span class="stale">stale</span>`)+(C.station!=null?` · base ${C.station}`:"")+(age?` · ${age} old`:"")+(C.live?"":" · none arriving");
+    else if(g.name.startsWith("Galileo")) cor="Galileo E6"+(age?` · ${age} old`:"");
+    else if(g.name.startsWith("SBAS")) cor="EGNOS"+(C.station!=null?` · PRN ${C.station}`:"")+(age?` · ${age} old`:"");
+    const est=g.estH!=null?`${mfmt(g.estH)} · ${mfmt(g.estV)}`:"–";
+    const err=!M.ref.set?"no reference":g.errH!=null?`${mfmt(g.errH)} · ${mfmt(g.errV)}`:"–";
+    const time=g.running?`for ${dur(g.runSec)}`:`ran ${dur(g.runSec)}, ended ${dur(g.endedAgoSec)} ago`;
+    return `<tr class="${g.running?"run":"off"}"><td>${esc(g.name)}</td><td>${st}</td><td>${cor}</td><td>${est}</td><td>${err}</td><td>${mfmt(g.bestEstH)}</td><td>${time}</td></tr>`});
+  $("methRows").innerHTML=rows.join("")||`<tr><td colspan="7">No fix yet</td></tr>`;
+  const sp=M.speed;
+  $("outLine").textContent=(sp==null?"Speed: – (needs RMC from the receiver)":`Speed: ${sp.toFixed(1)} m/s (${(sp*3.6).toFixed(0)} km/h) · ${M.moving?"moving":"stationary"}`)+` · Running: ${M.current}`;
+  // keep the settings object in step, so Save and restart on another tab does not undo these
+  if(cfg){cfg.reference=M.ref.set?{set:true,lat:+M.ref.lat,lon:+M.ref.lon,alt:+M.ref.alt}:{set:false,lat:0,lon:0,alt:0}}
+  $("refNote").textContent=refMsg||(M.ref.set?`Reference: ${M.ref.lat}, ${M.ref.lon}, ${(+M.ref.alt).toFixed(3)} m`:"No reference point: actual errors are not shown.");
+  $("refSet").disabled=M.currentCode!==5;
+  $("refSet").title=M.currentCode===5?"":"Needs RTK fixed (now: "+M.current+")";
+  if(!$("trace").closest("[data-page]").hidden){if(Date.now()-lastTrace>(traceSpan>7200?60000:traceSpan>1800?30000:10000)){lastTrace=Date.now();drawTrace()}if(Date.now()-histAt>30000)histInfo()}
+}
+// Axis label: nice values only, so no two labels can read the same
+const axLab=v=>v===0?"0":v>=1?(+v.toPrecision(3))+" m":(+(v*100).toPrecision(3))+" cm";
+let traceSpan=7200; try{traceSpan=+localStorage.getItem("traceSpan")||7200}catch(e){}
+const markSpan=()=>document.querySelectorAll("#spanSeg button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.span===traceSpan));
+document.querySelectorAll("#spanSeg button").forEach(b=>b.onclick=()=>{traceSpan=+b.dataset.span;try{localStorage.setItem("traceSpan",traceSpan)}catch(e){};markSpan();drawTrace()});
+markSpan();
+const hhmm=t=>new Date(t*1000).toISOString().slice(11,16);
+async function drawTrace(){
+  let d; try{d=await (await fetch("/api/trace?span="+traceSpan)).json()}catch(e){return}
+  lastTrace=Date.now();
+  const utc=d.mode==="utc", span=utc?traceSpan:1800;
+  const svg=$("trace"), W=svg.clientWidth||600, Hh=svg.clientHeight||150, L=50, R=6, T=6, B=18, sm=d.samples||[];
+  const t0=d.now-span, x=t=>L+(t-t0)/span*(W-L-R), ph=Hh-T-B, gapS=3*(d.step||10);
+  const vals=sm.flatMap(p=>[p[2],p[3]]).filter(v=>v>0);
+  const hi=Math.max(0.05,...vals), lo=vals.length?Math.min(...vals):hi;
+  // Logarithmic when the values span more than a factor of 20 (e.g. RTK centimetres and SBAS metres), else linear from 0
+  const lg=hi/lo>20;
+  let y, ticks=[];
+  if(lg){
+    const a=Math.floor(Math.log10(lo)), b=Math.ceil(Math.log10(hi*1.05));
+    y=v=>T+(1-(Math.log10(Math.max(v,10**a))-a)/(b-a))*ph;
+    for(let e=a;e<=b;e++)for(const m of [1,2,5]){const v=m*10**e;if(v<=10**b)ticks.push({v,major:m===1})}
+    const dec=ph/(b-a); ticks.forEach(t=>t.label=t.major||dec>=60);
+  }else{
+    const top=hi*1.1, raw=top/5, p10=10**Math.floor(Math.log10(raw)), step=[1,2,5,10].map(m=>m*p10).find(s=>s>=raw);
+    const max=Math.ceil(top/step)*step;
+    y=v=>T+(1-v/max)*ph;
+    for(let v=0;v<=max+step/2;v+=step)ticks.push({v:+v.toPrecision(6),major:true,label:true});
+  }
+  let g="";
+  // method background, only between samples that follow each other (a longer gap = off or restarting)
+  for(let i=0;i<sm.length;i++){const a=sm[i],b=sm[i+1];const xa=Math.max(L,x(a[0])),xb=b&&b[0]-a[0]<=gapS?x(b[0]):Math.min(x(a[0]+(d.step||10)),W-R);
+    if(xb>L&&xb>xa)g+=`<rect x="${xa}" y="${T}" width="${xb-xa}" height="${ph}" fill="${METHCOL[a[1]]}" opacity=".16"><title>${METHNAME[a[1]]}${utc?" · "+hhmm(a[0])+" UTC":""}</title></rect>`;
+    if(b&&b[0]-a[0]>gapS){const xg=x(a[0]+(d.step||10)),xe=x(b[0]);if(xe>L)g+=`<rect x="${Math.max(L,xg)}" y="${T}" width="${Math.max(0,xe-Math.max(L,xg))}" height="${ph}" fill="url(#gapHatch)"><title>no data ${hhmm(a[0])}–${hhmm(b[0])} UTC (off or restarting)</title></rect>`}}
+  for(const t of ticks){const yy=y(t.v).toFixed(1);
+    g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#9aa5a3" stroke-opacity="${t.major?.55:.28}"/>`;
+    if(t.label)g+=`<text x="${L-5}" y="${+yy+4}" text-anchor="end">${axLab(t.v)}</text>`}
+  // time axis: clock times (UTC) at round minutes, or minutes back when there is no date yet
+  const tstep={1800:300,7200:1200,21600:3600,86400:14400}[span]||300;
+  for(let t=Math.ceil(t0/tstep)*tstep;t<=d.now;t+=tstep){const xx=x(t);if(xx<L+20||xx>W-R-30)continue;
+    g+=`<line x1="${xx}" x2="${xx}" y1="${T}" y2="${T+ph}" stroke="#9aa5a3" stroke-opacity=".28"/><text x="${xx}" y="${Hh-4}" text-anchor="middle">${utc?hhmm(t):"−"+Math.round((d.now-t)/60)+" min"}</text>`}
+  g+=`<text x="${W-R}" y="${Hh-4}" text-anchor="end">${utc?hhmm(d.now)+" UTC":"now"}</text>`;
+  g+=`<rect x="${L}" y="${T}" width="${W-L-R}" height="${ph}" fill="none" stroke="var(--line)"/>`;
+  const line=(k,dash)=>{let p="",prev=null;for(const s of sm){if(s[k]<=0||s[0]<t0){prev=null;continue}p+=(prev!==null&&s[0]-prev<=gapS?"L":"M")+x(s[0]).toFixed(1)+" "+y(s[k]).toFixed(1);prev=s[0]}return p?`<path d="${p}" fill="none" stroke="var(--ink)" stroke-width="1.6"${dash?' stroke-dasharray="5 3"':""}/>`:""};
+  g+=line(2,false)+line(3,true);
+  svg.setAttribute("viewBox",`0 0 ${W} ${Hh}`);
+  svg.innerHTML=`<defs><pattern id="gapHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#9aa5a3" stroke-opacity=".35" stroke-width="2"/></pattern></defs>`+g;
+  const hasErr=sm.some(p=>p[3]>0), seen=[...new Set(sm.filter(p=>p[0]>=t0).map(p=>p[1]))];
+  const sw=d=>`<svg width="26" height="8" style="vertical-align:middle"><line x1="1" x2="25" y1="4" y2="4" stroke="currentColor" stroke-width="1.6"${d?' stroke-dasharray="5 3"':""}/></svg>`;
+  $("traceNote").innerHTML=(utc?`From the stored history, one point every ${d.step} s, times in UTC, `:"Since this start-up (no date from the receiver yet), one point every 10 s, ")+`${lg?"logarithmic":"linear"} scale. ${sw(0)} estimated accuracy (the receiver's own figure) · ${sw(1)} actual error against the reference point`+
+    (hasErr?"":" (appears once a reference point is set)")+`. Hatched: no data (off or restarting).<br>Background: `+seen.map(m=>`<span style="color:${METHCOL[m]}">■</span> ${METHNAME[m]}`).join(" · ");
+}
+// ---- Sky tab (colours as in PocketGNSS) ----
+const SYS={G:["GPS","#1E88E5"],R:["GLONASS","#E53935"],E:["Galileo","#3949AB"],C:["BeiDou","#FB8C00"],J:["QZSS","#8E24AA"],I:["NavIC","#00897B"],S:["SBAS","#6D4C41"]};
+const SYSORD="GRECJIS";
+const satLab=x=>x.s+String(x.p).padStart(2,"0");
+async function skyPoll(){
+  if(!skyVisible) return;
+  try{drawSky(await (await fetch("/api/sky")).json())}catch(e){}
+  setTimeout(skyPoll,2000);
+}
+const agoTxt=s=>s<90?s+" s":s<5400?Math.round(s/60)+" min":(s/3600).toFixed(1)+" h";
+function drawSky(d){
+  const all=(d.sats||[]).slice().sort((a,b)=>SYSORD.indexOf(a.s)-SYSORD.indexOf(b.s)||a.p-b.p);
+  const sats=all.filter(x=>x.a<5), lost=all.filter(x=>x.a>=5);
+  const LK=d.lastKnown, known=LK?LK.sats||[]:[], kAge=LK&&d.utc>0&&LK.utc>0?d.utc-LK.utc:-1;
+  const noGsv=d.gsvAgeMs<0||d.gsvAgeMs>5000;
+  $("skyNote").innerHTML=noGsv?`<span class="stale">No GSV from the receiver${d.gsvAgeMs>0?" for "+Math.round(d.gsvAgeMs/1000)+" s":""}.</span> Switch GSV (and GSA) on in the NMEA tab and apply it to the receiver.`
+    :`${sats.length} satellites in view, ${sats.filter(x=>x.u).length} used in the position`+(d.gsaAgeMs<0||d.gsaAgeMs>5000?" (no GSA: used satellites unknown)":"")+".";
+  if(known.length)$("skyNote").innerHTML+=` <span style="color:var(--muted)">Grey dashed: ${known.length} satellites at their last known positions from the previous run (${new Date(LK.utc*1000).toISOString().slice(11,16)} UTC${kAge>=0?", "+agoTxt(kAge)+" ago":""}); they have moved since and are replaced as the receiver locks on.</span>`;
+  if(lost.length)$("skyNote").innerHTML+=` <span style="color:var(--muted)">Grey: ${lost.length} lost lock (kept up to 10 min).</span>`;
+  // sky plot: zenith in the centre, horizon on the outer ring, north up
+  const C=200,Rr=170; let g="";
+  for(const e of [0,30,60]){const r=Rr*(90-e)/90;g+=`<circle cx="${C}" cy="${C}" r="${r}" fill="none" stroke="#9aa5a3" stroke-opacity=".5"/><text x="${(C+r*0.7071+3).toFixed(1)}" y="${(C+r*0.7071+11).toFixed(1)}" style="font-size:10px">${e}°</text>`}
+  g+=`<line x1="${C-Rr}" x2="${C+Rr}" y1="${C}" y2="${C}" stroke="#9aa5a3" stroke-opacity=".4"/><line x1="${C}" x2="${C}" y1="${C-Rr}" y2="${C+Rr}" stroke="#9aa5a3" stroke-opacity=".4"/>`;
+  g+=`<text x="${C}" y="${C-Rr-8}" text-anchor="middle">N</text><text x="${C}" y="${C+Rr+18}" text-anchor="middle">S</text><text x="${C+Rr+10}" y="${C+4}" text-anchor="middle">E</text><text x="${C-Rr-10}" y="${C+4}" text-anchor="middle">W</text>`;
+  const pos=(el,az)=>{const r=Rr*(90-el)/90,a=az*Math.PI/180;return [C+r*Math.sin(a),C-r*Math.cos(a)]};
+  for(const x of known.concat(lost)){if(x.el<0||x.az<0)continue;const [px,py]=pos(x.el,x.az),prev=x.a===undefined;
+    const tip=`${satLab(x)} · elevation ${x.el}°, azimuth ${x.az}° · `+(prev?`last known position from the previous run`:`lost lock ${agoTxt(x.a)} ago`);
+    g+=`<g opacity=".55"><title>${tip}</title><circle cx="${px}" cy="${py}" r="6" fill="none" stroke="#9aa5a3" stroke-width="2"${prev?' stroke-dasharray="3 2"':""}/><text class="sat" x="${px}" y="${py-12}" text-anchor="middle" style="fill:var(--muted)">${satLab(x)}</text></g>`}
+  for(const x of sats){if(x.el<0||x.az<0)continue;
+    const r=Rr*(90-x.el)/90,a=x.az*Math.PI/180,px=C+r*Math.sin(a),py=C-r*Math.cos(a),col=(SYS[x.s]||["?","#9E9E9E"])[1];
+    const tracked=x.sig.filter(q=>q[1]>0),multi=tracked.length>1;
+    const tip=`${satLab(x)} · elevation ${x.el}°, azimuth ${x.az}° · ${x.u?"used":"not used"}`+(tracked.length?" · "+tracked.map(q=>q[0]+" "+q[1]).join(", ")+" dB-Hz":" · no signal tracked");
+    g+=`<g><title>${tip}</title>`+(x.u?`<circle cx="${px}" cy="${py}" r="7" fill="${col}"/>`:`<circle cx="${px}" cy="${py}" r="6" fill="var(--panel)" stroke="${col}" stroke-width="2.5"/>`)+
+      (multi?`<circle cx="${px}" cy="${py}" r="10.5" fill="none" stroke="${col}" stroke-width="1.2"/>`:"")+`<text class="sat" x="${px}" y="${py-13}" text-anchor="middle">${satLab(x)}</text></g>`}
+  $("skyPlot").innerHTML=g;
+  // legend: used / in view per system
+  const by={};for(const x of sats)(by[x.s]=by[x.s]||[]).push(x);
+  $("skyLegend").innerHTML=Object.keys(by).map(k=>`<span><i style="background:${SYS[k][1]}"></i>${SYS[k][0]} ${by[k].filter(x=>x.u).length}/${by[k].length}</span>`).join("")+
+    `<span style="color:var(--muted)">filled = used · ring = not used · outer ring = more than one band · grey = no lock (dashed: previous run)</span>`;
+  // bands summary
+  const bands={};
+  for(const x of sats)for(const q of x.sig){const k=x.s+"|"+q[0];const B=bands[k]=bands[k]||{s:x.s,b:q[0],o:q[2],n:0,sum:0,max:0};if(q[1]>0){B.n++;B.sum+=q[1];B.max=Math.max(B.max,q[1])}}
+  const rows=Object.values(bands).sort((a,b)=>SYSORD.indexOf(a.s)-SYSORD.indexOf(b.s)||a.o-b.o);
+  $("bandTable").innerHTML=`<thead><tr><th>System</th><th>Band</th><th>Tracked / in view</th><th>Mean C/N0</th><th>Best</th></tr></thead><tbody>`+
+    rows.map(B=>`<tr class="${B.s==="E"&&B.b==="E6"?"e6":""}"><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${SYS[B.s][1]};margin-right:5px"></i>${SYS[B.s][0]}</td><td>${B.b}</td><td>${B.n} / ${by[B.s].length}</td><td>${B.n?(B.sum/B.n).toFixed(1)+" dB-Hz":"–"}</td><td>${B.n?B.max:"–"}</td></tr>`).join("")+"</tbody>";
+  const e6=bands["E|E6"], gal=by.E?by.E.length:0;
+  $("e6Note").innerHTML=!gal?"No Galileo satellites in view.":!e6||!e6.n?`<span class="stale">No Galileo E6 signal tracked</span> (${gal} Galileo satellites in view). Galileo HAS is sent on E6: check that the antenna covers E6 (1278 MHz).`
+    :`Galileo E6 tracked on ${e6.n} of ${gal} satellites, mean ${(e6.sum/e6.n).toFixed(1)} dB-Hz${e6.sum/e6.n<35?": weak for decoding HAS (aim for 35 dB-Hz or more)":""}.`;
+  // signal bars
+  const svg=$("sigBars"), list=sats.filter(x=>x.sig.length), gw=Math.max(26,8+6*Math.max(1,...list.map(x=>x.sig.length)));
+  const L=34,Bm=18,T=6,W=Math.max(svg.parentElement.clientWidth||600,L+list.length*gw+6),H=210,ph=H-T-Bm,yv=v=>T+ph*(1-Math.min(v,55)/55);
+  svg.style.width=W+"px"; let b="";
+  for(const v of [10,20,30,40,50]){b+=`<line x1="${L}" x2="${W-4}" y1="${yv(v)}" y2="${yv(v)}" stroke="#9aa5a3" stroke-opacity="${v===40||v===30?.55:.28}"/><text x="${L-5}" y="${yv(v)+4}" text-anchor="end">${v}</text>`}
+  b+=`<text x="2" y="${T+8}" style="font-size:10px">dB-Hz</text>`;
+  list.forEach((x,i)=>{const col=(SYS[x.s]||["?","#9E9E9E"])[1],sg=x.sig.slice().sort((a,c)=>a[2]-c[2]),x0=L+i*gw+3,bw=Math.max(4,(gw-8)/Math.max(1,sg.length));
+    sg.forEach((q,j)=>{const op=[1,.78,.58,.42,.32,.25][j]*(x.u?1:.4);if(q[1]>0)b+=`<rect x="${x0+j*bw}" y="${yv(q[1])}" width="${bw-1}" height="${T+ph-yv(q[1])}" fill="${col}" fill-opacity="${op}"><title>${satLab(x)} ${q[0]}: ${q[1]} dB-Hz${x.u?"":" (not used)"}</title></rect>`;
+      else b+=`<rect x="${x0+j*bw}" y="${T+ph-2}" width="${bw-1}" height="2" fill="#9aa5a3"><title>${satLab(x)} ${q[0]}: not tracked</title></rect>`});
+    b+=`<text x="${x0+(gw-6)/2}" y="${H-4}" text-anchor="middle" style="font-size:10px${x.u?";fill:var(--ink)":""}">${satLab(x)}</text>`});
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.innerHTML=b;
+}
+let refMsg="";
+const ymdS=(y,ms)=>y?`${String(y).slice(0,4)}-${String(y).slice(4,6)}-${String(y).slice(6,8)} ${new Date(ms).toISOString().slice(11,19)} UTC`:"–";
+let histAt=0;
+async function histInfo(){
+  histAt=Date.now();
+  try{const h=await (await fetch("/api/history")).json();
+    const hrs=h.records*h.stepSec/3600, cap=h.capacityRecords*h.stepSec/3600;
+    kv($("histInfo"),[["Records",`${h.records} (about ${hrs<1?Math.round(hrs*60)+" min":hrs.toFixed(1)+" h"})`],["From",ymdS(h.firstYmd,h.firstMs)],["To",ymdS(h.lastYmd,h.lastMs)],
+      ["Space used",`${(h.bytes/1024).toFixed(0)} KB of ${(h.capacityRecords*h.recordBytes/1024).toFixed(0)} KB · keeps about ${cap.toFixed(0)} h`]]);
+  }catch(e){}
+}
+$("histClear").onclick=async()=>{if(!confirm("Delete the whole positioning history from the Postcard? Download it first if you need it."))return;
+  const r=await fetch("/api/history/clear",{method:"POST"});$("histNote").textContent=await r.text();histInfo();setTimeout(()=>$("histNote").textContent="",8000)};
+addEventListener("resize",()=>{clearTimeout(drawTrace.t);drawTrace.t=setTimeout(drawTrace,300)});
+$("refSet").onclick=async()=>{const r=await fetch("/api/ref",{method:"POST",body:"set"});refMsg=(r.ok?"":"Not set: ")+await r.text();await status();setTimeout(()=>refMsg="",8000)};
+$("refClear").onclick=async()=>{if(!confirm("Clear the reference point? Actual errors are no longer shown."))return;const r=await fetch("/api/ref",{method:"POST",body:"clear"});refMsg=await r.text();await status();setTimeout(()=>refMsg="",8000)};
+
+async function setMode(m){
+  if(m===curMode) return;
+  const txt=m==="has"
+    ? "Switch to Galileo HAS?\n\nThe NTRIP corrections stop and the receiver uses Galileo HAS from the satellites (about 20 cm, several minutes to converge). Wi-Fi stays on for this page."
+    : "Switch to automatic?\n\nThe Postcard uses RTK whenever a correction source is available, and Galileo HAS, SBAS or GNSS only otherwise.";
+  if(!confirm(txt)) return;
+  const r=await fetch("/api/mode",{method:"POST",body:m});msg(await r.text(),r.ok?"ok":"err");
+  if(r.ok){curMode=m;if(cfg){cfg.corrections=cfg.corrections||{};cfg.corrections.mode=m}status()}
+}
+$("modeRtk").onclick=()=>setMode("rtk");
+$("modeHas").onclick=()=>setMode("has");
+$("factory").onclick=async()=>{
+  if(!confirm("Delete all saved settings and restart with the defaults built into this firmware?\n\nWi-Fi networks, correction sources and passwords return to the built-in values. Download a backup first if you want to keep the current ones."))return;
+  const r=await fetch("/api/factory",{method:"POST"});msg(await r.text(),r.ok?"ok":"err");setTimeout(()=>location.reload(),9000)};
+$("reboot").onclick=async()=>{if(!confirm("Restart the Postcard now?\n\nThe correction stream and Bluetooth/TCP links drop for about 20 s."))return;await fetch("/api/reboot",{method:"POST"});setTimeout(()=>location.reload(),8000)};
+$("sendCmd").onclick=async()=>{const r=await fetch("/api/cmd",{method:"POST",body:$("cmd").value});msg(await r.text(),r.ok?"ok":"err");setTimeout(()=>repliesPoll(true),600)};
+$("scan").onclick=async()=>{$("scanOut").textContent="scanning…";try{const l=await (await fetch("/api/scan")).json();
+  $("scanOut").textContent=l.map(n=>`${n.ssid} (${n.rssi} dBm)`).join(", ")||"none found"}catch{$("scanOut").textContent="scan failed"}};
+
+// Help texts: shown when hovering with a mouse, when a field gets focus, or on tap (touch screens)
+const HELP={
+  failover:"On: when the active source fails, move to the next one in the table. Off: stay on source 1 and keep retrying it.",
+  failbackSec:"While running on a lower-priority source, return to source 1 after this many seconds to see if it is back. 0 = never return automatically. Default 600.",
+  dataTimeoutSec:"The source counts as failed when no valid RTCM frame arrives for this long, even if the connection stays open. Default 30.",
+  maxAgeSec:"While the receiver reports RTK, a correction age (from GGA) above this for 10 s counts as a failure of the source. 0 = off. Default 10.",
+  ggaSec:"How often the position (GGA) is sent to sources that have GGA ticked. VRS and nearest-station mount points need it. Default 10.",
+  backoffSec:"Waits used after every source has failed in a row, one step per round, in seconds, separated by commas. The last step repeats. Default 15,30,60,120,300.",
+  benchLat:"Approximate latitude in decimal degrees (north positive), e.g. 53.3498. Sent as GGA to VRS/nearest casters until the receiver has its own fix. 0 = off.",
+  benchLon:"Approximate longitude in decimal degrees (east positive, west negative), e.g. -6.2603. 0 = off.",
+  benchAlt:"Approximate altitude above mean sea level in metres. A rough value is enough.",
+  sname:"Your own label for this source; shown on the Home page and in the event log.",
+  stype:"Kind of source, for your reference: own base, VRS (a virtual station computed at your position), nearest network station, or other. It does not change behaviour; the GGA column does.",
+  shost:"Caster address without http://, e.g. gr.nrtk.eu or euref-ip.net. Leave empty to skip this row.",
+  sport:"Caster TCP port: usually 2101; Metrica uses 7801.",
+  smount:"Mount point (stream name) without the leading slash, e.g. MSM_NEAR. A wrong name returns the source table and the source is disabled.",
+  suser:"Caster user name. Leave empty for open casters.",
+  spass:"Caster password.",
+  sgga:"Send the position (GGA) to this caster. Required for VRS and nearest-station mount points; without it they answer 200 OK but send no data.",
+  sv2:"Use the NTRIP 2.0 (HTTP/1.1) request. Leave off for NTRIP 1.0 casters; most casters accept both.",
+  stls:"Connect over TLS (encrypted, e.g. port 443). The server certificate is not checked.",
+  wssid:"Wi-Fi network name. Networks are tried in order; the first one in range is used.",
+  wpass:"Wi-Fi password. Leave empty for an open network.",
+  scan:"List the Wi-Fi networks the Postcard can hear, with signal strength (above -70 dBm is good).",
+  deviceName:"Name used for the Bluetooth device (with 4 hex digits added), the setup access point and http://<name>.local. Letters, digits and dashes.",
+  bt:"How NMEA reaches phones and tablets. Classic SPP: Android and Windows. BLE UART: iPhone/iPad. Both: experimental. Off: Bluetooth radio not used.",
+  tcpPort:"NMEA is also served to TCP clients on this port (up to 3 clients), e.g. for a PC or a Wi-Fi app. 0 = off. Default 2947.",
+  usb:"Not used on the Postcard: the receiver has its own USB channel (port B of the USB-C connector) for QGNSS. Port A carries the Postcard's log and command line.",
+  inboundRtcm:"When the Postcard itself is not streaming NTRIP, pass RTCM sent by a Bluetooth/TCP app (one with its own NTRIP client) to the receiver.",
+  adminPass:"Password for this web page. User name is always admin.",
+  apPass:"Password of the setup access point (PostcardRTK-Setup-XXXX). At least 8 characters.",
+  nmeaPause:"Freeze the live view to read it; the output itself keeps running.",
+  uartBaud:"Speed of the Postcard-receiver serial link. It must match the receiver's UART setting (460800 recommended).",
+  bootCmds:"Receiver commands sent once after every start-up, one per line, e.g. $PQTMCFGMSGRATE,W,GSV,0 to turn GSV off. The checksum is added when missing.",
+  cmd:"A Quectel command to send now, e.g. $PQTMVERNO for the firmware version. The reply appears on USB and in the NMEA live view.",
+  sendCmd:"Send the command to the receiver now. Nothing is saved.",
+  download:"Save all settings, including passwords, as a JSON file.",
+  uploadLbl:"Load a settings file saved from this or another PostcardRTK. It replaces everything and restarts the Postcard.",
+  reboot:"Restart the Postcard. Corrections and Bluetooth/TCP links drop for about 20 s.",
+  shutdown:"Stop everything safely and halt, so the Postcard can be unplugged.",
+  modeRtk:"Automatic: RTK whenever corrections are available (NTRIP over Wi-Fi, or an app sending RTCM over Bluetooth); if RTK does not perform better than the fallback for 5 minutes it is paused and retried later. Otherwise Galileo HAS, then SBAS (EGNOS), then GNSS only.",
+  modeHas:"Never use RTK corrections: Galileo High Accuracy Service from the satellites (needs an antenna that receives E6), about 20 cm after several minutes of convergence; SBAS or GNSS only when HAS is not available.",
+  galileoHas:"Let the receiver use Galileo HAS when there are no RTK corrections (needs LG290P firmware 2.x and an antenna that receives E6).",
+  factory:"Delete the saved settings and restart with the defaults built into this firmware (on a private build: your Wi-Fi and caster logins).",
+  save:"Store the settings on all tabs in flash and restart the Postcard to apply them.",
+  nmeaApply:"Switch the selected messages on and every other listed message off in the LG290P (GGA always stays on, the Postcard needs it), set the fix rate, save in the receiver and restart it. The replies are shown below.",
+  fixHz:"Position updates per second in the receiver. 1 Hz for static and walking work, 5-10 Hz for vehicles, machines and drones. GSA and GSV stay at 1 Hz. Read from the receiver when this tab opens.",
+  nmeaAll:"Clear the selection: every type the receiver outputs is sent.",
+  nmeaBw:"Estimated data rate of the selection at this fix rate. BLE manages about 2 kB/s; Bluetooth SPP and TCP much more."};
+const KVHELP={
+"Fix":"Positioning method in use. RTK fixed = centimetre level; RTK float = decimetre level, still converging; DGNSS (RTCM) = code corrections from a base station; SBAS (EGNOS) = satellite-based corrections, about 1 m; HAS converging / converged = Galileo HAS precise point positioning (20 cm or better once converged); GNSS only = no corrections, 1-3 m.",
+  "Corrections from":"Where the corrections in use come from. RTK fixed / float and DGNSS (RTCM) use the NTRIP source shown (or RTCM from a phone app) with its base station number. SBAS (EGNOS) uses the European EGNOS satellites (no base station number, about 1 m). Galileo HAS uses E6 corrections from Galileo (station 9002). GNSS only has no corrections.",
+  "Accuracy (estimated)":"The receiver's own error estimate, horizontal (H) and vertical (V), one standard deviation: from PQTMEPE, or from GST when EPE is missing. RTK fixed is typically 1-2 cm, RTK float decimetres, Galileo HAS about 10-20 cm once converged, plain GNSS 1-3 m.",
+  "Galileo HAS":"Status of the receiver's PPP engine (PQTMPPPNAV): converging or converged, its horizontal accuracy, the correction station (9002 = Galileo HAS) and the age of the HAS corrections. 'No PPP status' means the receiver firmware does not support PPP.",
+  "HDOP":"Horizontal dilution of precision: satellite geometry. Below 1 is good; above 2 is poor.",
+  "Correction age":"Seconds since the last correction used by the receiver. Normally 1-2 s; above the 'Max correction age' setting counts as a failure.",
+  "Base station":"Reference station id reported by the receiver in GGA.",
+  "UTC":"Time of the last GGA from the receiver.",
+  "State":"NTRIP client state: connecting, waiting for a fix, streaming, backing off, or stopped.",
+  "On stream":"Seconds on the current connection.",
+  "Last frame":"Time since the last valid RTCM frame from the caster.",
+  "Bytes on stream":"Bytes received on the current connection. Stuck at 0 with a 200 OK reply usually means the mount point needs a position (GGA).",
+  "Frames / CRC errors":"Valid RTCM frames since start-up, and frames rejected by the CRC check.",
+  "GGA sent":"Positions sent to casters since start-up, and the UTC time of the last one. The full sentence is shown above Events.",
+  "Base id (1005)":"Reference station id from RTCM message 1005/1006 in the correction stream.",
+  "Failovers":"Number of source changes since start-up.",
+  "Last event":"Latest correction event; the full list is under Events.",
+  "Bluetooth":"Bluetooth name and mode, and whether an app is connected.",
+  "TCP clients":"Clients connected to the NMEA TCP port.",
+  "Wi-Fi signal":"Signal strength of the joined network. Above -70 dBm is good; below -80 dBm is unreliable.",
+  "Receiver UART":"Speed and byte counters of the Postcard-receiver serial link. rx not growing = no data from the receiver (check wiring and speed).",
+  "NMEA good / bad":"Sentences from the receiver with a correct / wrong checksum. Bad ones point to a speed mismatch or noisy wiring.",
+  "Dropped (queues full)":"Data dropped because a queue between the cores was full. Should stay 0."};
+const THHELP={Name:"sname",Type:"stype","Caster host":"shost",Port:"sport","Mount point":"smount",User:"suser",Password:"spass",GGA:"sgga","NTRIP 2":"sv2",TLS:"stls","Network name (SSID)":"wssid"};
+function applyHelp(root){
+  (root||document).querySelectorAll("[id]").forEach(el=>{
+    const h=HELP[el.id]||HELP[el.id.replace(/^([sw])\d/,"$1")]; if(!h) return;
+    const lab=el.closest("label"); (lab&&!lab.closest(".tbl")?lab:el).dataset.help=h;
+  });
+  document.querySelectorAll(".tbl th").forEach(th=>{const k=THHELP[th.textContent];if(k)th.dataset.help=HELP[k]});
+}
+const tip=$("tip");let tipFor=null,tipTimer=0;
+function showTip(el){
+  if(!el||!el.dataset.help){hideTip();return}
+  tipFor=el;tip.innerHTML=el.dataset.help.startsWith("<b>")?el.dataset.help:esc(el.dataset.help);tip.hidden=false;
+  const r=el.getBoundingClientRect(),t=tip.getBoundingClientRect(),vw=innerWidth,vh=innerHeight;
+  let y=r.bottom+6; if(y+t.height>vh-4) y=Math.max(4,r.top-t.height-6);
+  tip.style.top=y+"px";tip.style.left=Math.min(Math.max(8,r.left),vw-t.width-8)+"px";
+}
+function hideTip(){tip.hidden=true;tipFor=null;clearTimeout(tipTimer)}
+document.addEventListener("pointerover",e=>{if(e.pointerType!=="mouse")return;const el=e.target.closest("[data-help]");if(el!==tipFor){clearTimeout(tipTimer);if(el)tipTimer=setTimeout(()=>showTip(el),350);else hideTip()}});
+document.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"){hideTip();return}const el=e.target.closest("[data-help]");if(el){showTip(el);clearTimeout(tipTimer);tipTimer=setTimeout(hideTip,6000)}else hideTip()});
+document.addEventListener("focusin",e=>{const el=e.target.closest("[data-help]");if(el&&e.target.matches("input,select,textarea"))showTip(el)});
+document.addEventListener("focusout",e=>{if(tipFor&&tipFor.contains(e.target))hideTip()});
+addEventListener("scroll",hideTip,true);
+
+applyHelp();
+loadConfig().then(()=>{applyHelp();status()});setInterval(status,2000);
+</script>
+</body>
+</html>
