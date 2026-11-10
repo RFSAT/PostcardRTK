@@ -77,10 +77,12 @@ jobs:
           # Waveshare LG290P module + ESP32-C6 SuperMini (V2)
           BOARD=c6 POSTCARDRTK_VERSION=$VERSION bash tools/build.sh
           mkdir -p out
-          cp build/PostcardRTK.ino.bin out/PostcardRTK-$VERSION.bin
-          cp build/PostcardRTK.ino.merged.bin out/PostcardRTK-$VERSION-merged_0x0.bin
-          cp build/c6/PostcardRTK.ino.bin out/PostcardRTK-$VERSION-c6.bin
-          cp build/c6/PostcardRTK.ino.merged.bin out/PostcardRTK-$VERSION-c6-merged_0x0.bin
+          # File names end with the RFSAT variant ID (master documentation C-12):
+          # _V3 = SparkFun RTK Postcard, _V2 = Waveshare LG290P module + ESP32-C6 SuperMini
+          cp build/PostcardRTK.ino.bin out/PostcardRTK-${VERSION}_V3.bin
+          cp build/PostcardRTK.ino.merged.bin out/PostcardRTK-${VERSION}-merged_0x0_V3.bin
+          cp build/c6/PostcardRTK.ino.bin out/PostcardRTK-${VERSION}_V2.bin
+          cp build/c6/PostcardRTK.ino.merged.bin out/PostcardRTK-${VERSION}-merged_0x0_V2.bin
           (cd out && sha256sum * > SHA256SUMS.txt)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 

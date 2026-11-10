@@ -64,12 +64,14 @@ You need Chrome or Edge, and a USB-C data cable to the Postcard. The CH342 chip 
 
 1. Open the **Espressif web flasher** at https://espressif.github.io/esptool-js/
 2. Set the baud rate to 921600, press **Connect** and pick port A.
-3. Add file `PostcardRTK-<version>-merged_0x0.bin` at **Flash Address 0x0**, press **Program**, and wait for "Leaving…".
+3. Add file `PostcardRTK-<version>-merged_0x0_V3.bin` at **Flash Address 0x0**, press **Program**, and wait for "Leaving…".
 4. Press the reset button or re-plug the cable.
 
 The merged image holds the bootloader, the partition table (the same as RTK Everywhere) and PostcardRTK. The settings of the previous firmware are not used.
 
-**Later updates** keep the settings: write only `PostcardRTK-<version>.bin` at address **0x10000**.
+**Later updates** keep the settings: write only `PostcardRTK-<version>_V3.bin` at address **0x10000**.
+
+**File names** end with the RFSAT variant ID, so each file shows which prototype it belongs on: `_V3` for the SparkFun RTK Postcard, `_V2` for the Waveshare LG290P module with the ESP32-C6 SuperMini. Private builds add `-private` before the ID. Never write a `_V2` file to a Postcard or the reverse: the pins and flash layout differ.
 
 **Back to RTK Everywhere:** use SparkFun's RTK Firmware Uploader as before.
 
@@ -138,7 +140,7 @@ One source, one version: `firmware/PostcardRTK/board.h` holds what differs, and 
 
 | | SparkFun RTK Postcard (V3) | LG290P module + ESP32-C6 SuperMini (V2) |
 |---|---|---|
-| Release files | `PostcardRTK-<version>.bin`, `-merged_0x0.bin` | `PostcardRTK-<version>-c6.bin`, `-c6-merged_0x0.bin` |
+| Release files | `PostcardRTK-<version>_V3.bin`, `PostcardRTK-<version>-merged_0x0_V3.bin` | `PostcardRTK-<version>_V2.bin`, `PostcardRTK-<version>-merged_0x0_V2.bin` |
 | Receiver UART | GPIO21 RX, GPIO22 TX, reset GPIO33 | GPIO17 RX ← TXD3, GPIO16 TX → RXD3 (UART3 socket of the module), no reset line |
 | Bluetooth | classic SPP and/or BLE | **BLE only** (Nordic UART Service); the settings `spp` and `both` are served as BLE |
 | Flash, partitions | 16 MB, as RTK Everywhere | 4 MB, `firmware/partitions_c6.csv` (one 2.75 MB application, 1.1 MB file system) |
@@ -149,7 +151,7 @@ One source, one version: `firmware/PostcardRTK/board.h` holds what differs, and 
 
 Wiring: TXD3 → GPIO17, RXD3 ← GPIO16, GND, and the module's 5V pad from the C6's 5V pin (never join the two 3.3 V rails). Avoid GPIO4, 5, 8, 9, 15 for anything else (strapping pins); GPIO12/13 are USB.
 
-**Flashing:** Espressif web flasher on the C6's USB-C (hold BOOT while plugging in if it does not connect), file `PostcardRTK-<version>-c6-merged_0x0.bin` at 0x0; updates `PostcardRTK-<version>-c6.bin` at 0x10000.
+**Flashing:** Espressif web flasher on the C6's USB-C (hold BOOT while plugging in if it does not connect), file `PostcardRTK-<version>-merged_0x0_V2.bin` at 0x0; updates `PostcardRTK-<version>_V2.bin` at 0x10000.
 
 **Building:** `BOARD=c6 bash tools/build.sh` (output in `build/c6/`). Board settings: ESP32C6 Dev Module, 4 MB flash, partition scheme custom, USB CDC on boot enabled.
 
