@@ -6,6 +6,11 @@ on:
     tags: [ "v*" ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a release with this tag (e.g. v0.1.1); leave empty for a plain build"
+        required: false
+        default: ""
 
 env:
   ESP32_CORE_VERSION: 3.0.7
@@ -66,7 +71,7 @@ jobs:
 
       - name: Build
         run: |
-          VERSION=$(git describe --tags --always)
+          VERSION=${{ inputs.release_tag || '' }}; [ -n "$VERSION" ] || VERSION=$(git describe --tags --always)
           POSTCARDRTK_VERSION=$VERSION bash tools/build.sh
           mkdir -p out
           cp build/PostcardRTK.ino.bin out/PostcardRTK-$VERSION.bin
@@ -80,10 +85,12 @@ jobs:
           path: out/*
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           # Versions below 1.0 and versions with a suffix (v1.2.0-rc1) are published as pre-releases
-          prerelease: ${{ startsWith(github.ref_name, 'v0.') || contains(github.ref_name, '-') }}
+          prerelease: ${{ startsWith(inputs.release_tag || github.ref_name, 'v0.') || contains(inputs.release_tag || github.ref_name, '-') }}
           generate_release_notes: true
           files: out/*
