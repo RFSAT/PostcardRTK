@@ -4,13 +4,12 @@
 #include <atomic>
 #include <cstddef>
 
-// SparkFun RTK Postcard: ESP32 <-> LG290P (as in SparkFun RTK Everywhere, Begin.ino)
-static const int PIN_GNSS_RX = 21;    // ESP32 RX <- LG290P TX
-static const int PIN_GNSS_TX = 22;    // ESP32 TX -> LG290P RX
-static const int PIN_GNSS_RESET = 33; // high = run, low = reset
+#include "board.h" // pins of the receiver UART and reset line
 
 extern std::atomic<bool> configReady;
-extern std::atomic<uint32_t> receiverBaud; // UART speed in use (found automatically if the setting is wrong)
+extern std::atomic<uint32_t> receiverBaud;
+extern std::atomic<uint8_t> currentMethod;    // Method of the last GGA (receiver task -> indicators)
+extern std::atomic<uint32_t> currentMethodMs; // when it was set // UART speed in use (found automatically if the setting is wrong)
 extern std::atomic<bool> ladderSourceAvailable; // set by the main loop
 extern std::atomic<bool> ladderAllowRtk;        // read by the main loop
 

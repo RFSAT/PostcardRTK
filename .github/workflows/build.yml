@@ -72,10 +72,15 @@ jobs:
       - name: Build
         run: |
           VERSION=${{ inputs.release_tag || '' }}; [ -n "$VERSION" ] || VERSION=$(git describe --tags --always)
+          # SparkFun RTK Postcard (V3)
           POSTCARDRTK_VERSION=$VERSION bash tools/build.sh
+          # Waveshare LG290P module + ESP32-C6 SuperMini (V2)
+          BOARD=c6 POSTCARDRTK_VERSION=$VERSION bash tools/build.sh
           mkdir -p out
           cp build/PostcardRTK.ino.bin out/PostcardRTK-$VERSION.bin
           cp build/PostcardRTK.ino.merged.bin out/PostcardRTK-$VERSION-merged_0x0.bin
+          cp build/c6/PostcardRTK.ino.bin out/PostcardRTK-$VERSION-c6.bin
+          cp build/c6/PostcardRTK.ino.merged.bin out/PostcardRTK-$VERSION-c6-merged_0x0.bin
           (cd out && sha256sum * > SHA256SUMS.txt)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 

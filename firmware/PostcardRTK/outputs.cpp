@@ -1,17 +1,37 @@
-// outputs.cpp - main loop: NMEA to Bluetooth (classic SPP for Android, BLE for iPhone) and TCP clients,
-// inbound RTCM from apps that run their own NTRIP client (e.g. over the phone's mobile data)
+// outputs.cpp - main loop: NMEA to Bluetooth (classic SPP for Android, BLE for iPhone and PocketGNSS 1.13) and TCP
+// clients, inbound RTCM from apps that run their own NTRIP client (e.g. over the phone's mobile data).
+// On the ESP32-C6 (V2) only BLE exists: the Bluetooth setting spp / both is served as BLE.
 #include "outputs.h"
+#include "board.h"
 #include "config.h"
 #include "rtcm.h"
 #include "shared.h"
 #include "util.h"
 #include <BleSerial.h>
-#include <BluetoothSerial.h>
 #include <WiFi.h>
+#if BOARD_BT_CLASSIC
+#include <BluetoothSerial.h>
+#else
+// No Bluetooth classic on this chip: an SPP that never starts, so the code below stays the same
+struct NoSpp
+{
+    void setTimeout(int) {}
+    bool begin(const String &, bool) { return false; }
+    void end() {}
+    bool hasClient() { return false; }
+    size_t write(const uint8_t *, size_t) { return 0; }
+    int available() { return 0; }
+    size_t readBytes(uint8_t *, size_t) { return 0; }
+};
+#endif
 
 static const int MAX_TCP = 3;
 static bool useSpp = false, useBle = false;
+#if BOARD_BT_CLASSIC
 static BluetoothSerial spp;
+#else
+static NoSpp spp;
+#endif
 static BleSerial ble;
 static WiFiServer *tcpServer = nullptr;
 static WiFiClient tcpClients[MAX_TCP];
@@ -52,8 +72,13 @@ String outputsBtName() { return btName; }
 
 void outputsSetup()
 {
+#if BOARD_BT_CLASSIC
     useSpp = (cfg.bt == "spp" || cfg.bt == "both");
     useBle = (cfg.bt == "ble" || cfg.bt == "both");
+#else
+    useSpp = false;
+    useBle = (cfg.bt != "off");
+#endif
 
     // Bluetooth name: device name + last 4 hex digits of the Wi-Fi MAC, e.g. "PostcardRTK-7924"
     uint8_t mac[6] = {0};

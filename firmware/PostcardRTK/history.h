@@ -1,5 +1,6 @@
 // history.h - core 0: positioning history in flash (/hist2a.bin, /hist2b.bin), kept across restarts
 #pragma once
+#include "board.h"
 #include "methods.h"
 #include "sky.h"
 #include <Arduino.h>
@@ -17,4 +18,5 @@ void historyBackward(bool (*fn)(const HistRec &, void *), void *ctx);
 void historyForEach(bool (*fn)(const HistRec &, void *), void *ctx);
 // Last known sky from the previous run (loaded at start-up, saved with every history write)
 const SkySnap &skyLastKnown();
-static const uint32_t HIST_FILE_MAX = 384u * 1024u; // two files: about 30 h at one record every 10 s
+// Two files: about 30 h at one record every 10 s on the Postcard (16 MB flash), about 20 h on the C6 (4 MB)
+static const uint32_t HIST_FILE_MAX = BOARD_HIST_FILE_BYTES;

@@ -9,7 +9,8 @@
 // Tasks: Arduino loop = Wi-Fi, NTRIP, Bluetooth, web page, console. Receiver task (higher priority) =
 // LG290P UART, NMEA parsing, method ladder; it never waits on the network.
 //
-// Board: ESP32 Dev Module, 16 MB flash, PSRAM on, partitions as SparkFun RTK Everywhere (tools/build.sh).
+// Boards (board.h, tools/build.sh): SparkFun RTK Postcard (ESP32, 16 MB flash, PSRAM, partitions as SparkFun RTK
+// Everywhere), and the ESP32-C6 SuperMini with the Waveshare LG290P module (4 MB flash, single core, BLE only).
 
 #include "config.h"
 #include "console.h"
@@ -23,6 +24,8 @@
 #include "shared.h"
 #include "util.h"
 #include "web.h"
+#include "board.h"
+#include "indicators.h"
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <esp_sleep.h>
@@ -86,7 +89,9 @@ void safeShutdown()
 {
     dbg("[boot] shutting down\r\n");
     stopEverything("shut down from the page");
-    digitalWrite(PIN_GNSS_RESET, LOW); // hold the receiver in reset (lower current)
+    if (PIN_GNSS_RESET >= 0)
+        digitalWrite(PIN_GNSS_RESET, LOW); // hold the receiver in reset (lower current)
+    indicatorsOff();
     dbg("[boot] halted, safe to unplug; press reset or power it up again to start\r\n");
     Serial.flush();
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
@@ -135,7 +140,8 @@ void setup()
     const esp_reset_reason_t rr = esp_reset_reason();
     bootReason = resetReasonName(rr);
     diagBoot((int)rr);
-    dbg("\r\n[boot] PostcardRTK %s, last reset: %s\r\n[boot] previous run: %s\r\n", POSTCARDRTK_VERSION, bootReason,
+    indicatorsSetup();
+    dbg("\r\n[boot] PostcardRTK %s (" BOARD_NAME "), last reset: %s\r\n[boot] previous run: %s\r\n", POSTCARDRTK_VERSION, bootReason,
         diagText().c_str());
     diagC0 = 101;
     receiverInitShared();
@@ -171,7 +177,12 @@ void setup()
     wdc.idle_core_mask = 0;
     wdc.trigger_panic = true;
     esp_task_wdt_reconfigure(&wdc);
+#if CONFIG_FREERTOS_UNICORE
+    // Single core (ESP32-C6): the receiver task shares the core; it yields every millisecond
+    xTaskCreate(receiverTask, "receiver", 8192, nullptr, 3, nullptr);
+#else
     xTaskCreatePinnedToCore(receiverTask, "receiver", 8192, nullptr, 3, nullptr, 1);
+#endif
     wdtArmed = true;
 
     diagC0 = 108;
@@ -315,6 +326,7 @@ void loop()
     diagC0 = 8;
     historyLoop();
     eventsLoop();
+    indicatorsLoop();
     diagC0 = 9;
 
     if (bootCmdsAt && (int32_t)(millis() - bootCmdsAt) > 0)

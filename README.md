@@ -2,6 +2,8 @@
 
 Firmware for the **SparkFun RTK Postcard** (ESP32 + Quectel LG290P quad-band GNSS) running **on its own**, without the Portability Shield or a screen. It is powered from the USB-C port and starts as soon as it gets power. It sends positions as NMEA over Bluetooth, and picks the best positioning method by itself.
 
+The same firmware also runs on a **Waveshare LG290P module joined to an ESP32-C6 SuperMini** by a UART (variant V2 of the RFSAT RTK documentation): see [ESP32-C6 build](#esp32-c6-build-variant-v2).
+
 RFSAT Ltd. Developed from [PicoRTK](https://github.com/RFSAT/PicoRTK), the same rover on a Raspberry Pi Pico 2 W, and sharing its tested modules: NMEA and RTCM handling, the NTRIP client with failover, method tracking, sky view, history and the event log.
 
 ## How it chooses the method
@@ -118,17 +120,40 @@ bash tools/build.sh            # needs arduino-cli, esp32:esp32@3.0.7, ArduinoJs
 
 **Board settings:** ESP32 Dev Module, 16 MB flash, PSRAM on, partition table `firmware/PostcardRTK/partitions.csv` (the same as RTK Everywhere).
 
-**CI:** runs the PC unit tests (`test/test_main.cpp`, including the method ladder scenarios) and the NTRIP protocol test, then builds both `.bin` files.
+**CI:** runs the PC unit tests (`test/test_main.cpp`, including the method ladder scenarios) and the NTRIP protocol test, then builds the `.bin` files for both boards.
 
 **Private builds** with your Wi-Fi and caster logins compiled in:
 
 ```
 python3 tools/make_defaults.py my-settings.json
-bash tools/build.sh
+bash tools/build.sh            # and/or BOARD=c6 bash tools/build.sh
 python3 tools/make_defaults.py --remove
 ```
 
 `my-settings.json` is a settings file downloaded from the page. The generated `defaults_local.h` is git-ignored: never commit it or publish a binary built with it.
+
+## ESP32-C6 build (variant V2)
+
+One source, one version: `firmware/PostcardRTK/board.h` holds what differs, and the build picks the board.
+
+| | SparkFun RTK Postcard (V3) | LG290P module + ESP32-C6 SuperMini (V2) |
+|---|---|---|
+| Release files | `PostcardRTK-<version>.bin`, `-merged_0x0.bin` | `PostcardRTK-<version>-c6.bin`, `-c6-merged_0x0.bin` |
+| Receiver UART | GPIO21 RX, GPIO22 TX, reset GPIO33 | GPIO17 RX ← TXD3, GPIO16 TX → RXD3 (UART3 socket of the module), no reset line |
+| Bluetooth | classic SPP and/or BLE | **BLE only** (Nordic UART Service); the settings `spp` and `both` are served as BLE |
+| Flash, partitions | 16 MB, as RTK Everywhere | 4 MB, `firmware/partitions_c6.csv` (one 2.75 MB application, 1.1 MB file system) |
+| Event log, history | 64 KB, 2 × 384 KB (about 30 h) | 32 KB, 2 × 256 KB (about 20 h) |
+| Console | USB port A (CH342), 115200 | the C6's own USB-C (USB CDC) |
+| LEDs | – | GPIO15: on = Wi-Fi connected, slow blink = looking for Wi-Fi, fast blink = setup network. RGB (GPIO8): green RTK fixed, yellow float, cyan HAS converged, blue HAS converging, magenta DGNSS/SBAS, white GNSS only, red blinking = no position |
+| Button | – | GPIO19 to GND, hold 3 s: setup network |
+
+Wiring: TXD3 → GPIO17, RXD3 ← GPIO16, GND, and the module's 5V pad from the C6's 5V pin (never join the two 3.3 V rails). Avoid GPIO4, 5, 8, 9, 15 for anything else (strapping pins); GPIO12/13 are USB.
+
+**Flashing:** Espressif web flasher on the C6's USB-C (hold BOOT while plugging in if it does not connect), file `PostcardRTK-<version>-c6-merged_0x0.bin` at 0x0; updates `PostcardRTK-<version>-c6.bin` at 0x10000.
+
+**Building:** `BOARD=c6 bash tools/build.sh` (output in `build/c6/`). Board settings: ESP32C6 Dev Module, 4 MB flash, partition scheme custom, USB CDC on boot enabled.
+
+**Receiver set-up:** the receiver's own USB-C (on the Waveshare module) takes QGNSS for firmware updates; unplug the UART link to the C6 meanwhile.
 
 ## Hardware notes
 

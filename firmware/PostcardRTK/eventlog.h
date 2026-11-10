@@ -2,9 +2,10 @@
 // (one session = one run from start-up to restart or power-off). Every event of the current session is
 // kept; when the file reaches EV_MAX_BYTES, earlier sessions are trimmed first, oldest first.
 #pragma once
+#include "board.h"
 #include <Arduino.h>
 
-static const size_t EV_MAX_BYTES = 64u * 1024u;
+static const size_t EV_MAX_BYTES = BOARD_EVENT_LOG_BYTES; // 64 KB on the Postcard, 32 KB on the C6
 
 void eventsSetup();             // after LittleFS.begin(): starts a new session
 void eventAdd(const char *msg); // an event of this session (time-stamped here)

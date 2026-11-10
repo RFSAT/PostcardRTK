@@ -30,6 +30,8 @@ static NmeaAssembler nmea;
 static uint32_t baudSince = 0;
 static int baudIndex = -1;
 std::atomic<uint32_t> receiverBaud{0};
+std::atomic<uint8_t> currentMethod{M_NONE};
+std::atomic<uint32_t> currentMethodMs{0};
 NmeaTypeStat nmeaTypes[MAX_NMEA_TYPES];
 int nmeaTypeCount = 0;
 mutex_t typesMutex;
@@ -243,8 +245,11 @@ void receiverSetup1()
     // Wait until the main loop has loaded the settings
     while (!configReady.load())
         delay(5);
-    pinMode(PIN_GNSS_RESET, OUTPUT);
-    digitalWrite(PIN_GNSS_RESET, HIGH); // LG290P running (low = held in reset)
+    if (PIN_GNSS_RESET >= 0)
+    {
+        pinMode(PIN_GNSS_RESET, OUTPUT);
+        digitalWrite(PIN_GNSS_RESET, HIGH); // LG290P running (low = held in reset)
+    }
     Serial1.setRxBufferSize(16384);
     Serial1.begin(cfg.uartBaud, SERIAL_8N1, PIN_GNSS_RX, PIN_GNSS_TX);
     receiverBaud.store(cfg.uartBaud);
@@ -327,6 +332,8 @@ static void handleSentence(const char *s, size_t len)
             bool rtcmLive = lastRtcm && now - lastRtcm < 5000;    // "live" corrections: RTCM arrives every second
             diagC1 = 34;
             Method m = classifyMethod(g, ppp, rtcmActive);
+            currentMethod.store((uint8_t)m);
+            currentMethodMs.store(now);
             float eh, ev;
             estimateFor(m, now, eh, ev);
             CorrInfo ci = correctionsFor(m, g, ppp, rtcmLive);

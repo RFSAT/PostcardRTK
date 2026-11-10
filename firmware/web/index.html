@@ -352,6 +352,10 @@ dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-u
 
 <div id="tip" role="tooltip" hidden></div>
 <script>
+// ESP32-C6 boards (V2) have Bluetooth LE only: offer BLE and Off, and show a stored SPP choice as BLE
+function fixBt(){if(!window.bleOnly)return;const b=document.getElementById("bt");const v=b.value;
+  b.innerHTML='<option value="ble">BLE UART (Android, iOS)</option><option value="off">Off</option>';b.value=(v==="off")?"off":"ble";}
+
 const $=id=>document.getElementById(id);
 let curMode="rtk", rxVisible=false, skyVisible=false;
 async function repliesPoll(once){
@@ -382,7 +386,8 @@ async function status(){
     const s=await (await fetch("/api/status")).json();
     kv($("restartInfo"),[["Reset reason",s.lastReset||"?"],["Previous run",esc(s.previousRun||"–")]]);
     $("restartInfo").classList.toggle("warn",!!s.previousRunProblem);
-    $("hdr").textContent=`v${s.version}${s.privateDefaults?" (private build)":""} · ${s.wifi.mode} ${s.wifi.ssid||""} ${s.wifi.ip} · up ${Math.floor(s.uptimeSec/60)} min · last reset: ${s.lastReset||"?"}`;
+    if(s.btClassic===false&&!window.bleOnly){window.bleOnly=true;fixBt();}
+    $("hdr").textContent=`v${s.version}${s.board?" · "+s.board:""}${s.privateDefaults?" (private build)":""} · ${s.wifi.mode} ${s.wifi.ssid||""} ${s.wifi.ip} · up ${Math.floor(s.uptimeSec/60)} min · last reset: ${s.lastReset||"?"}`;
     const g=s.gnss;
     curMode=s.mode||"rtk";
     $("modeRtk").setAttribute("aria-pressed",curMode==="rtk");$("modeHas").setAttribute("aria-pressed",curMode==="has");
@@ -463,7 +468,7 @@ async function loadConfig(){
   $("sources").innerHTML=cfg.ntrip.map(sourceCard).join("");
   let w="";for(let i=0;i<4;i++){const n=cfg.wifi[i]||{};w+=`<tr><td class="n">${i+1}</td><td><input id="w${i}ssid" value="${esc(n.ssid)}" placeholder="SSID"></td><td><input type="password" id="w${i}pass" value="${esc(n.pass)}" autocomplete="new-password"></td></tr>`}
   $("wifi").innerHTML=w;
-  $("deviceName").value=cfg.deviceName;$("bt").value=o.bt;$("tcpPort").value=o.tcpPort;$("usb").checked=o.usb;$("inboundRtcm").checked=o.inboundRtcm;
+  $("deviceName").value=cfg.deviceName;$("bt").value=o.bt;fixBt();$("tcpPort").value=o.tcpPort;$("usb").checked=o.usb;$("inboundRtcm").checked=o.inboundRtcm;
   $("adminPass").value=cfg.web.adminPass;$("apPass").value=cfg.web.apPass;
   nmeaSel=new Set((o.nmeaTypes||[]).map(t=>t.toUpperCase()));renderChips();
   $("uartBaud").value=String(r.uartBaud);$("bootCmds").value=(r.bootCmds||[]).join("\n");

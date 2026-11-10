@@ -1,5 +1,6 @@
 // web.cpp - core 0: configuration page and JSON API (HTTP Basic login "admin" / adminPass)
 #include "web.h"
+#include "board.h"
 #include "config.h"
 #include "history.h"
 #include "eventlog.h"
@@ -57,6 +58,8 @@ static void handleStatus()
     uint32_t now = millis();
     JsonDocument d;
     d["version"] = POSTCARDRTK_VERSION;
+    d["board"] = BOARD_NAME;
+    d["btClassic"] = BOARD_BT_CLASSIC != 0;
     d["uptimeSec"] = now / 1000;
     extern const char *bootReason;
     d["lastReset"] = bootReason;
