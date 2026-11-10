@@ -301,8 +301,11 @@ void loop()
     {
         char reason[160];
         LadderState st;
-        if (ladderTakeChange(reason, sizeof(reason), st))
+        // Logged only when the ladder's state changes (not every fixed/float change), so the event log is not flooded
+        static int lastState = -1;
+        if (ladderTakeChange(reason, sizeof(reason), st) && (int)st != lastState)
         {
+            lastState = (int)st;
             char m[200];
             snprintf(m, sizeof(m), "method ladder: %s - %s", ladderStateName(st), reason);
             eventAdd(m);
