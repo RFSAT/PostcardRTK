@@ -61,10 +61,12 @@ Method classifyMethod(const GgaInfo &g, const PppNav *ppp, bool rtcmActive)
     case 5: return M_RTK_FLOAT;
     case 2:
     {
-        // SBAS fixes report no station, or the EGNOS satellite number (PRN 120-158) as the station
+        // SBAS fixes report no station, the EGNOS satellite number (PRN 120-158) or (u-blox) 0 as the station
         const bool sbasPrn = st >= 120 && st <= 158;
-        if (st >= 0 && !(sbasPrn && !rtcmActive))
+        if (st > 0 && !(sbasPrn && !rtcmActive))
             return M_DGNSS;
+        if (st == 0 && rtcmActive)
+            return M_DGNSS; // a base with id 0 while RTCM is arriving
         return M_SBAS;
     }
     case 1: return M_GNSS;

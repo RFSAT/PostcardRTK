@@ -133,6 +133,7 @@ button[data-help],.chip,label.check[data-help]{cursor:pointer}
 dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-underline-offset:3px}
 #tip{position:fixed;z-index:20;max-width:min(380px,calc(100vw - 16px));background:var(--ink);color:var(--bg);font:13px/1.45 var(--sans);padding:7px 10px;border-radius:5px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.25);text-transform:none;letter-spacing:0}
 #tip b{font-family:var(--mono)}
+body.ublox .lgonly{display:none!important}
 </style>
 </head>
 <body>
@@ -164,7 +165,7 @@ dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-u
     <h2 style="margin:0">Corrections</h2>
     <div class="seg" role="group" aria-label="Correction mode">
       <button type="button" id="modeRtk" aria-pressed="false">Automatic</button>
-      <button type="button" id="modeHas" aria-pressed="false">Galileo HAS only</button>
+      <button type="button" id="modeHas" class="lgonly" aria-pressed="false">Galileo HAS only</button>
     </div>
     <span class="hint" id="modeNote" style="margin:0"></span>
   </section>
@@ -235,7 +236,7 @@ dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-u
     <p class="hint">Sources are tried in order. A failure (no connection, no reply, rejected login or mount point, no RTCM for the timeout, or a correction age above the limit) moves to the next source. After every source has failed in a row the device waits (back-off) before starting again from source 1.</p>
     <div class="grid">
       <label class="check"><input type="checkbox" id="failover"> Failover between sources</label>
-      <label class="check"><input type="checkbox" id="galileoHas"> Galileo HAS fallback</label>
+      <label class="check lgonly"><input type="checkbox" id="galileoHas"> Galileo HAS fallback</label>
       <label>Return to source 1 (s)<input type="number" id="failbackSec" min="0"></label>
       <label>No-data timeout (s)<input type="number" id="dataTimeoutSec" min="5"></label>
       <label>Max correction age (s)<input type="number" id="maxAgeSec" min="0"></label>
@@ -292,9 +293,9 @@ dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-u
     <p class="hint">Pick a profile or press message types (hover or tap for details), then <b>Apply to receiver</b> and <b>Save and restart</b>. None selected = everything is sent. USB always carries the full stream.</p>
     <div class="profiles" id="profiles"></div>
     <div class="cgrp"><div class="grp">NMEA 0183</div><div class="chips" id="chipsStd"></div></div>
-    <div class="cgrp"><div class="grp">Quectel</div><div class="chips" id="chipsPq"></div></div>
+    <div class="cgrp lgonly"><div class="grp">Quectel</div><div class="chips" id="chipsPq"></div></div>
     <div class="cgrp" id="otherWrap" hidden><div class="grp">Other</div><div class="chips" id="chipsOther"></div></div>
-    <div class="nctl">
+    <div class="nctl lgonly">
       <select id="fixHz" aria-label="Fix rate"><option value="1">1 Hz</option><option value="2">2 Hz</option><option value="5">5 Hz</option><option value="10">10 Hz</option></select>
       <button class="btn" id="nmeaApply" type="button">Apply to receiver</button>
       <button class="btn" id="nmeaAll" type="button">Clear</button>
@@ -312,11 +313,11 @@ dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-u
   <section>
     <h2>Receiver link</h2>
     <div class="grid">
-      <label>UART speed (bit/s)<select id="uartBaud"><option>115200</option><option>230400</option><option>460800</option><option>921600</option></select></label>
+      <label class="lgonly">UART speed (bit/s)<select id="uartBaud"><option>115200</option><option>230400</option><option>460800</option><option>921600</option></select></label>
       <label class="wide">Commands sent at start-up (one per line, checksum added when missing)<textarea id="bootCmds" spellcheck="false"></textarea></label>
     </div>
   </section>
-  <section>
+  <section class="lgonly">
     <h2>Send a command now</h2>
     <p class="hint">Quectel PQTM commands, for example <code>$PQTMVERNO</code> (firmware version) or <code>$PQTMCFGPPP,R</code> (Galileo HAS setting). The reply appears below.</p>
     <div class="row"><input id="cmd" placeholder="$PQTMVERNO" style="flex:1;min-width:0"><button class="btn" id="sendCmd" type="button">Send</button></div>
@@ -353,6 +354,12 @@ dt[data-help],th[data-help]{text-decoration:underline dotted var(--muted);text-u
 <div id="tip" role="tooltip" hidden></div>
 <script>
 // ESP32-C6 boards (V2) have Bluetooth LE only: offer BLE and Off, and show a stored SPP choice as BLE
+// AgriBIT receiver (V7): u-blox ZED-F9R. No Galileo HAS; the Quectel-only controls are hidden (class lgonly).
+function ubloxText(){
+  const intro=[...document.querySelectorAll("p")].find(x=>x.textContent.startsWith("SparkFun RTK Postcard (ESP32"));
+  if(intro)intro.textContent="AgriBIT receiver (ESP32 with a u-blox ZED-F9R multi-band receiver with built-in IMU for dead reckoning). It picks the best positioning method by itself: RTK with corrections over Wi-Fi from up to four NTRIP sources (or from a phone app over Bluetooth), then SBAS (EGNOS), then GNSS only, and checks regularly whether a better one has become available. NMEA goes to Bluetooth clients.";
+  const h=[...document.querySelectorAll("h2")].find(x=>x.textContent.startsWith("PostcardRTK"));if(h)h.textContent="RFSAT V7 · RTK GNSS rover";
+}
 function fixBt(){if(!window.bleOnly)return;const b=document.getElementById("bt");const v=b.value;
   b.innerHTML='<option value="ble">BLE UART (Android, iOS)</option><option value="off">Off</option>';b.value=(v==="off")?"off":"ble";}
 
@@ -387,6 +394,7 @@ async function status(){
     kv($("restartInfo"),[["Reset reason",s.lastReset||"?"],["Previous run",esc(s.previousRun||"–")]]);
     $("restartInfo").classList.toggle("warn",!!s.previousRunProblem);
     if(s.btClassic===false&&!window.bleOnly){window.bleOnly=true;fixBt();}
+    if(s.receiver==="ublox"&&!document.body.classList.contains("ublox")){document.body.classList.add("ublox");ubloxText();}
     $("hdr").textContent=`v${s.version}${s.board?" · "+s.board:""}${s.privateDefaults?" (private build)":""} · ${s.wifi.mode} ${s.wifi.ssid||""} ${s.wifi.ip} · up ${Math.floor(s.uptimeSec/60)} min · last reset: ${s.lastReset||"?"}`;
     const g=s.gnss;
     curMode=s.mode||"rtk";
@@ -438,6 +446,7 @@ async function status(){
       ["TCP clients",o.tcpPort?`${o.tcpClients} on port ${o.tcpPort}`:"off"],
       ["Wi-Fi signal",s.wifi.rssi?s.wifi.rssi+" dBm":"–"],
       ["Receiver UART",`${u.baud} bit/s · rx ${u.rxBytes} B · tx ${u.txBytes} B`],
+      ...(s.receiver==="ublox"?[["Receiver",esc(s.receiverVersion||"u-blox (version not read yet)")]]:[]),
       ["NMEA good / bad",u.nmeaGood+" / "+u.nmeaBad],["Dropped (queues full)",u.drops]]);
     document.querySelectorAll("#sources tr").forEach((el,i)=>el.classList.toggle("active",i===n.source-1));
     renderMethods(s);

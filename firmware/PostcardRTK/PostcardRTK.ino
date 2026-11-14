@@ -10,7 +10,8 @@
 // LG290P UART, NMEA parsing, method ladder; it never waits on the network.
 //
 // Boards (board.h, tools/build.sh): SparkFun RTK Postcard (ESP32, 16 MB flash, PSRAM, partitions as SparkFun RTK
-// Everywhere), and the ESP32-C6 SuperMini with the Waveshare LG290P module (4 MB flash, single core, BLE only).
+// Everywhere), the ESP32-C6 SuperMini with the Waveshare LG290P module (4 MB flash, single core, BLE only), and the
+// AgriBIT receiver (V7): ESP32-DevKitC + u-blox ZED-F9R (4 MB flash, no PSRAM, OLED).
 
 #include "config.h"
 #include "console.h"
@@ -26,6 +27,7 @@
 #include "web.h"
 #include "board.h"
 #include "indicators.h"
+#include "display.h"
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <esp_sleep.h>
@@ -92,6 +94,7 @@ void safeShutdown()
     if (PIN_GNSS_RESET >= 0)
         digitalWrite(PIN_GNSS_RESET, LOW); // hold the receiver in reset (lower current)
     indicatorsOff();
+    displayOff();
     dbg("[boot] halted, safe to unplug; press reset or power it up again to start\r\n");
     Serial.flush();
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
@@ -141,6 +144,7 @@ void setup()
     bootReason = resetReasonName(rr);
     diagBoot((int)rr);
     indicatorsSetup();
+    displaySetup(POSTCARDRTK_VERSION); // V7 OLED: boot screen (RFSAT Limited, version)
     dbg("\r\n[boot] PostcardRTK %s (" BOARD_NAME "), last reset: %s\r\n[boot] previous run: %s\r\n", POSTCARDRTK_VERSION, bootReason,
         diagText().c_str());
     diagC0 = 101;
@@ -236,10 +240,22 @@ static void sendRx(const char *c)
 // Galileo HAS (PPP, E6) in the receiver: on unless switched off in the settings.
 // WGS84, 120 s timeout, converged at 0.10 m horizontal / 0.15 m vertical (Quectel LG290P PPP application note).
 // Not saved in the receiver: sent at every start-up and on every mode change.
+#if BOARD_UBLOX
+void sendHasCommand() {} // the ZED-F9R has no Galileo HAS
+#else
 void sendHasCommand() { sendRx((cfg.mode == "has" || cfg.galileoHas) ? "$PQTMCFGPPP,W,2,1,120,0.10,0.15" : "$PQTMCFGPPP,W,0"); }
+#endif
 
 static void sendBootCommands()
 {
+#if BOARD_UBLOX
+    // The u-blox receiver is configured by the receiver task once it is found (receiver.cpp); the user's boot commands
+    // (if any) are NMEA-style text, which the ZED-F9R ignores except for $PUBX: passed on as they are
+    for (int i = 0; i < CFG_MAX_BOOTCMDS; i++)
+        if (cfg.bootCmd[i].length())
+            sendRx(cfg.bootCmd[i].c_str());
+    return;
+#endif
     // The messages this firmware needs on its UART (not saved in the receiver)
     static const char *const cmds[] = {"$PQTMCFGMSGRATE,W,GGA,1",        "$PQTMCFGMSGRATE,W,RMC,1",
                                        "$PQTMCFGMSGRATE,W,GSA,1",        "$PQTMCFGMSGRATE,W,GSV,1",
@@ -259,6 +275,15 @@ static void sendBootCommands()
 // (it then sends RTCM instead of using it): switch it back, save, restart the receiver.
 static void checkReceiverMode()
 {
+#if BOARD_UBLOX
+    char rep[300];
+    if (ubloxTakeReport(rep, sizeof(rep)))
+    {
+        eventAdd(rep);
+        dbg("[rx] %s\r\n", rep);
+    }
+    return;
+#endif
     if (!modeCheckUntil)
         return;
     if ((int32_t)(millis() - modeCheckUntil) > 0)
@@ -327,6 +352,7 @@ void loop()
     historyLoop();
     eventsLoop();
     indicatorsLoop();
+    displayLoop();
     diagC0 = 9;
 
     if (bootCmdsAt && (int32_t)(millis() - bootCmdsAt) > 0)

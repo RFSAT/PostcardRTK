@@ -1,5 +1,6 @@
 // config.h - settings stored as /config.json in LittleFS
 #pragma once
+#include "board.h"
 #include <Arduino.h>
 
 static const int CFG_MAX_WIFI = 4;
@@ -26,7 +27,11 @@ struct NtripSource
 
 struct Config
 {
+#if defined(BOARD_V7)
+    String deviceName = "RFSAT-V7";
+#else
     String deviceName = "PostcardRTK";
+#endif
     String adminPass = "postcardrtk"; // web page login (user "admin")
     String apPass = "postcardrtk-setup"; // setup access point, 8+ characters
 
@@ -66,7 +71,11 @@ struct Config
     float benchAlt = 0;
 
     // Outputs
+#if defined(BOARD_V7)
+    String bt = "spp";   // V7 (no PSRAM): Bluetooth Classic only by default, as the original AgriBIT receiver; both possible
+#else
     String bt = "both";  // spp | ble | both | off (Android apps use SPP, iPhone apps BLE)
+#endif
     bool usb = false;     // receiver stream on USB (also bridges USB input to the receiver)
     uint16_t tcpPort = 2947; // NMEA TCP server, 0 = off
     bool inboundRtcm = true; // accept RTCM from Bluetooth/TCP clients when NTRIP is not streaming

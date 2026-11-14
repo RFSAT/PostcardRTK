@@ -60,6 +60,12 @@ static void handleStatus()
     d["version"] = POSTCARDRTK_VERSION;
     d["board"] = BOARD_NAME;
     d["btClassic"] = BOARD_BT_CLASSIC != 0;
+#if BOARD_UBLOX
+    d["receiver"] = "ublox";
+    d["receiverVersion"] = ubloxVersion();
+#else
+    d["receiver"] = "lg290p";
+#endif
     d["uptimeSec"] = now / 1000;
     extern const char *bootReason;
     d["lastReset"] = bootReason;

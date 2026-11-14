@@ -10,6 +10,7 @@
 #include "rtcm.h"
 #include "selector.h"
 #include "ladder.h"
+#include "ublox.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -309,6 +310,9 @@ static void testMethods()
     CHECK(classifyMethod(mkGga(2, 124), nullptr, false) == M_SBAS);   // EGNOS PRN as station
     CHECK(classifyMethod(mkGga(2, 124), nullptr, true) == M_DGNSS);   // RTCM flowing: a real base
     CHECK(classifyMethod(mkGga(2, 27), nullptr, false) == M_DGNSS);
+    CHECK(classifyMethod(mkGga(2, 0), nullptr, false) == M_SBAS);     // u-blox SBAS: station 0
+    CHECK(classifyMethod(mkGga(2, 0), nullptr, true) == M_DGNSS);     // base id 0 with RTCM flowing
+    CHECK(classifyMethod(mkGga(6, -1), nullptr, false) == M_DR);      // ZED-F9R dead reckoning only
     CHECK(classifyMethod(mkGga(4, 27), nullptr, true) == M_RTK_FIXED);
     CHECK(classifyMethod(mkGga(5, 27), nullptr, true) == M_RTK_FLOAT);
     CHECK(classifyMethod(mkGga(5, 9002), nullptr, false) == M_HAS_CONV);
@@ -689,8 +693,71 @@ static void testLadder()
     }
 }
 
+// UBX frames: checksum of a known frame, VALSET layout, parser ACK / NAK / MON-VER, NMEA mixed in
+static void testUblox()
+{
+    uint8_t f[64];
+    // MON-VER poll: B5 62 0A 04 00 00 0E 34 (u-blox Interface Description)
+    size_t n = ubxMonVerPoll(f, sizeof(f));
+    CHECK(n == 8 && f[6] == 0x0E && f[7] == 0x34);
+    // VALSET of a 1-byte key: payload 9 bytes, layers RAM+BBR
+    UbxKey k{0x209100bb, 1, "GGA"};
+    n = ubxValset(k, f, sizeof(f));
+    CHECK(n == 17 && f[2] == 0x06 && f[3] == 0x8A && f[4] == 9 && f[7] == 0x03 && f[10] == 0xbb && f[13] == 0x20 && f[14] == 1);
+    // 4-byte key (baud)
+    UbxKey kb{UBX_KEY_UART1_BAUD, 115200, "baud"};
+    n = ubxValset(kb, f, sizeof(f));
+    CHECK(n == 20 && f[14] == 0x00 && f[15] == 0xC2 && f[16] == 0x01 && f[17] == 0x00);
+    // every setup key has a valid size
+    for (int i = 0; i < UBX_SETUP_COUNT; i++)
+        CHECK(ubxValset(UBX_SETUP[i], f, sizeof(f)) > 0);
+
+    UbxParser p;
+    // ACK-ACK for CFG-VALSET, with NMEA bytes and noise around it
+    uint8_t ackPl[2] = {0x06, 0x8A};
+    size_t an = ubxFrame(0x05, 0x01, ackPl, 2, f, sizeof(f));
+    const char *junk = "$GNGGA,1*00\r\n\xB5";
+    int acks = 0;
+    for (const char *c = junk; *c; c++)
+        p.feed((uint8_t)*c);
+    for (size_t i = 0; i < an; i++)
+        if (p.feed(f[i]) == UBX_ACK && p.ackedClass() == 0x06 && p.ackedId() == 0x8A)
+            acks++;
+    CHECK(acks == 1);
+    // NAK
+    an = ubxFrame(0x05, 0x00, ackPl, 2, f, sizeof(f));
+    int naks = 0;
+    for (size_t i = 0; i < an; i++)
+        if (p.feed(f[i]) == UBX_NAK)
+            naks++;
+    CHECK(naks == 1);
+    // corrupted checksum: no event, counted as an error
+    f[an - 1] ^= 0xFF;
+    int any = 0;
+    for (size_t i = 0; i < an; i++)
+        if (p.feed(f[i]) != UBX_NONE)
+            any++;
+    CHECK(any == 0 && p.errors() >= 1);
+    // MON-VER with extensions
+    uint8_t mv[40 + 3 * 30] = {0};
+    memcpy(mv, "EXT CORE 1.00 (a59682)", 22);
+    memcpy(mv + 30, "00190000", 8);
+    memcpy(mv + 40, "FWVER=HPS 1.30", 14);
+    memcpy(mv + 70, "PROTVER=33.30", 13);
+    memcpy(mv + 100, "MOD=ZED-F9R", 11);
+    static uint8_t big[200];
+    size_t vn = ubxFrame(0x0A, 0x04, mv, sizeof(mv), big, sizeof(big));
+    int ver = 0;
+    for (size_t i = 0; i < vn; i++)
+        if (p.feed(big[i]) == UBX_MONVER)
+            ver++;
+    CHECK(ver == 1);
+    CHECK(std::string(p.version()) == "HPS 1.30, protocol 33.30, ZED-F9R");
+}
+
 int main()
 {
+    testUblox();
     testLadder();
     testEvTrim();
     testSky();

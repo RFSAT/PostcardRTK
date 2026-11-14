@@ -2,7 +2,7 @@
 
 Firmware for the **SparkFun RTK Postcard** (ESP32 + Quectel LG290P quad-band GNSS) running **on its own**, without the Portability Shield or a screen. It is powered from the USB-C port and starts as soon as it gets power. It sends positions as NMEA over Bluetooth, and picks the best positioning method by itself.
 
-The same firmware also runs on a **Waveshare LG290P module joined to an ESP32-C6 SuperMini** by a UART (variant V2 of the RFSAT RTK documentation): see [ESP32-C6 build](#esp32-c6-build-variant-v2).
+The same firmware also runs on a **Waveshare LG290P module joined to an ESP32-C6 SuperMini** by a UART (variant V2 of the RFSAT RTK documentation): see [ESP32-C6 build](#esp32-c6-build-variant-v2); and on the **AgriBIT receiver** (ESP32-DevKitC + u-blox ZED-F9R, variant V7): see [AgriBIT receiver build](#agribit-receiver-build-variant-v7).
 
 RFSAT Ltd. Developed from [PicoRTK](https://github.com/RFSAT/PicoRTK), the same rover on a Raspberry Pi Pico 2 W, and sharing its tested modules: NMEA and RTCM handling, the NTRIP client with failover, method tracking, sky view, history and the event log.
 
@@ -71,7 +71,7 @@ The merged image holds the bootloader, the partition table (the same as RTK Ever
 
 **Later updates** keep the settings: write only `PostcardRTK-<version>_V3.bin` at address **0x10000**.
 
-**File names** end with the RFSAT variant ID, so each file shows which prototype it belongs on: `_V3` for the SparkFun RTK Postcard, `_V2` for the Waveshare LG290P module with the ESP32-C6 SuperMini. Private builds add `-private` before the ID. Never write a `_V2` file to a Postcard or the reverse: the pins and flash layout differ.
+**File names** end with the RFSAT variant ID, so each file shows which prototype it belongs on: `_V3` for the SparkFun RTK Postcard, `_V2` for the Waveshare LG290P module with the ESP32-C6 SuperMini, `_V7` for the AgriBIT receiver (ESP32-DevKitC + ZED-F9R). Private builds add `-private` before the ID. Never write a `_V2` file to a Postcard or the reverse: the pins and flash layout differ.
 
 **Back to RTK Everywhere:** use SparkFun's RTK Firmware Uploader as before.
 
@@ -156,6 +156,41 @@ Wiring: TXD3 → GPIO17, RXD3 ← GPIO16, GND, and the module's 5V pad from the 
 **Building:** `BOARD=c6 bash tools/build.sh` (output in `build/c6/`). Board settings: ESP32C6 Dev Module, 4 MB flash, partition scheme custom, USB CDC on boot enabled.
 
 **Receiver set-up:** the receiver's own USB-C (on the Waveshare module) takes QGNSS for firmware updates; unplug the UART link to the C6 meanwhile.
+
+## AgriBIT receiver build (variant V7)
+
+The AgriBIT GNSS receiver (2021-2023): an **ESP32-DevKitC V4** (ESP32-WROOM-32D, 4 MB flash, no PSRAM) stacked on the **ESP_F9x** board with a **u-blox ZED-F9R** (multi-band RTK with a built-in IMU for dead reckoning), optionally with the **ESP_BG95** board (Quectel BG95-M3 LTE-M modem, SD card) between them. This build replaces its original ESPrtk firmware: **back up the original first** (below). The first V7 version is **Wi-Fi only** (no modem, no SD card), with the optional 0.96" OLED.
+
+| | AgriBIT receiver (V7) |
+|---|---|
+| Release files | `PostcardRTK-<version>_V7.bin`, `PostcardRTK-<version>-merged_0x0_V7.bin` |
+| Receiver | u-blox ZED-F9R, configured with UBX CFG-VALSET at every start (RAM and battery-backed RAM; its flash configuration is not changed): NMEA GGA, RMC, GSA, GSV, GST, VTG on (GLL off), NMEA high precision, RTCM3 in, SBAS (EGNOS) on, IMU mount auto-alignment, 115200 baud. Every key gets its own message, so a key the receiver's firmware lacks is reported by name in the event log and the rest still applies |
+| Receiver UART | found automatically: GPIO16 RX / GPIO4 TX or GPIO17 RX / GPIO5 TX (both wired through the stack), at 115200, 38400 (ZED-F9 default), 9600, 230400 or 460800; searched again if NMEA stops for 5 s. The receiver's firmware version (UBX MON-VER) is shown on the status page and in the event log |
+| Methods | RTK (fixed / float), DGNSS, SBAS, GNSS only, dead reckoning (GGA quality 6). **No Galileo HAS** (not in the ZED-F9R): the HAS controls are hidden on this board |
+| Bluetooth | classic SPP by default (as the original); BLE or both selectable (more RAM) |
+| Flash, partitions | 4 MB, `firmware/partitions_c6.csv` (one 2.75 MB application, 1.1 MB file system) |
+| Display | SSD1306 0.96" 128 x 64 on I2C GPIO26 SDA / GPIO27 SCL (optional; nothing happens without it). Boot screen: RFSAT Limited and the firmware version. Status: method and satellites, the receiver's accuracy estimate, **C:** caster (Metrica SmartNet, EUREF-IP, RTK2go by name; others by host) and **M:** mount point while streaming (otherwise the NTRIP state), correction station and age, IP address or the setup network |
+| LEDs | GPIO15 ("ESP_RTK OK"): on = Wi-Fi connected, slow blink = looking for Wi-Fi, fast blink = setup network. GPIO12 ("ESP_RTK ERROR"): on = no position or no data from the receiver |
+| Button | GPIO13 (top button), hold 3 s: setup network |
+| Not used yet | BG95 modem (GPIO0 power key), SD card (GPIO23/39/18/19) |
+
+**Back up the original ESPrtk firmware first** (once per unit; restores it exactly, licence and settings included). With the DevKitC off the stack, on its own USB, using esptool 5 (`esptool` 4 writes the commands with `_`):
+
+```
+esptool --chip esp32 --port COM5 flash-id
+esptool --chip esp32 --port COM5 read-mac
+esptool --chip esp32 --port COM5 --baud 115200 read-flash 0x000000 0x100000 part0.bin
+esptool --chip esp32 --port COM5 --baud 115200 read-flash 0x100000 0x100000 part1.bin
+esptool --chip esp32 --port COM5 --baud 115200 read-flash 0x200000 0x100000 part2.bin
+esptool --chip esp32 --port COM5 --baud 115200 read-flash 0x300000 0x100000 part3.bin
+copy /b part0.bin+part1.bin+part2.bin+part3.bin ESPrtk_unitN_backup.bin
+```
+
+Reading in 1 MB parts avoids "Digest mismatch" on long reads; repeat a part that fails. Restore: `esptool --chip esp32 --port COM5 --baud 115200 write-flash 0 ESPrtk_unitN_backup.bin`.
+
+**Flashing V7:** DevKitC on its own USB (or the whole stack on the DevKitC's USB), first install `esptool --chip esp32 --port COM5 --baud 115200 write-flash 0 PostcardRTK-<version>-merged_0x0_V7.bin`; updates `write-flash 0x10000 PostcardRTK-<version>_V7.bin` (settings kept). The Espressif web flasher works too.
+
+**Building:** `BOARD=v7 bash tools/build.sh` (output in `build/v7/`; needs the U8g2 library). Board settings: ESP32 Dev Module, 4 MB flash, partition scheme custom, PSRAM disabled, extra flag `-DBOARD_V7`.
 
 ## Hardware notes
 

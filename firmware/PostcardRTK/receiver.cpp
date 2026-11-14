@@ -4,6 +4,7 @@
 #include "shared.h"
 #include "diag.h"
 #include "ladder.h"
+#include "ublox.h"
 #include <Arduino.h>
 
 SpscRing<16384> rtcmToRx;
@@ -14,6 +15,7 @@ static uint32_t rmcYmd = 0; // UTC date from the latest RMC
 static float rmcMps = -1;   // speed from the latest RMC (m/s)
 static uint32_t rmcAtMs = 0;
 SharedGga sharedGga;
+static EpochNow epochNow; // under ggaMutex
 static SharedAccuracy sharedAcc;
 static MethodTracker tracker; // under ggaMutex
 static SkyTable sky;           // under skyMutex
@@ -199,6 +201,13 @@ bool getLatestGga(SharedGga &out)
     return out.len > 0;
 }
 
+void getEpochNow(EpochNow &out)
+{
+    mutex_enter_blocking(&ggaMutex);
+    out = epochNow;
+    mutex_exit(&ggaMutex);
+}
+
 void getLadder(Ladder &out)
 {
     mutex_enter_blocking(&ggaMutex);
@@ -240,6 +249,98 @@ void receiverInitShared()
     ladderConfigure();
 }
 
+// ---- u-blox receiver (V7): which UART and speed it is on, and its start-up configuration ----
+#if BOARD_UBLOX
+static UbxParser ubx;
+static uint32_t lastSentenceMs = 0;         // last valid NMEA sentence
+static int ubxStage = 0;                    // 0 = searching, 1 = configured
+static uint32_t ubxAcks = 0, ubxNaks = 0;
+static char ubxNakNames[160] = "";          // keys the receiver rejected (firmware without them)
+static char ubxVersion[120] = "";
+static int pinPair = 0;                     // 0 = PIN_GNSS_RX/TX, 1 = the _ALT pair
+static const uint32_t UBX_BAUD = 115200;    // speed set in the receiver once found
+static int pendingIdx = -1;                 // UBX_SETUP entry waiting for its ACK (for the NAK list)
+std::atomic<bool> ubxReportReady{false};
+
+static void uartOpen(uint32_t baud, int pair)
+{
+    Serial1.end();
+    Serial1.setRxBufferSize(16384);
+    if (pair == 0)
+        Serial1.begin(baud, SERIAL_8N1, PIN_GNSS_RX, PIN_GNSS_TX);
+    else
+        Serial1.begin(baud, SERIAL_8N1, PIN_GNSS_RX_ALT, PIN_GNSS_TX_ALT);
+    pinPair = pair;
+    receiverBaud.store(baud);
+}
+
+// Configure the ZED-F9R (RAM + battery-backed RAM; its flash configuration is left as it was), then move the link to
+// UBX_BAUD and ask for the firmware version. Called by the receiver task once NMEA arrives.
+static void ubloxConfigure()
+{
+    uint8_t f[32];
+    for (int i = 0; i < UBX_SETUP_COUNT; i++)
+    {
+        size_t n = ubxValset(UBX_SETUP[i], f, sizeof(f));
+        pendingIdx = i;
+        Serial1.write(f, n);
+        // wait for this key's ACK / NAK (up to 300 ms) so a rejected key is known by name
+        uint32_t t0 = millis();
+        bool done = false;
+        while (!done && millis() - t0 < 300)
+        {
+            while (Serial1.available())
+            {
+                uint8_t b = Serial1.read();
+                UbxEvent ev = ubx.feed(b);
+                if ((ev == UBX_ACK || ev == UBX_NAK) && ubx.ackedClass() == 0x06 && ubx.ackedId() == 0x8A)
+                {
+                    if (ev == UBX_ACK)
+                        ubxAcks++;
+                    else
+                    {
+                        ubxNaks++;
+                        size_t l = strlen(ubxNakNames);
+                        snprintf(ubxNakNames + l, sizeof(ubxNakNames) - l, "%s%s", l ? ", " : "", UBX_SETUP[i].name);
+                    }
+                    done = true;
+                }
+                nmea.feed(b); // keep NMEA flowing to the extractor (sentences in this window are dropped, not mixed)
+            }
+            delay(2);
+        }
+    }
+    pendingIdx = -1;
+    if (receiverBaud.load() != UBX_BAUD)
+    {
+        // both receiver UARTs (only the one wired to us matters; the other is unused on this board)
+        const UbxKey k1{UBX_KEY_UART1_BAUD, UBX_BAUD, "UART1 115200 baud"}, k2{UBX_KEY_UART2_BAUD, UBX_BAUD, "UART2 115200 baud"};
+        size_t n = ubxValset(k1, f, sizeof(f));
+        Serial1.write(f, n);
+        n = ubxValset(k2, f, sizeof(f));
+        Serial1.write(f, n);
+        Serial1.flush();
+        delay(50); // the receiver switches after sending its ACK at the old speed
+        uartOpen(UBX_BAUD, pinPair);
+    }
+    size_t n = ubxMonVerPoll(f, sizeof(f));
+    Serial1.write(f, n);
+    ubxStage = 1;
+    ubxReportReady = true;
+}
+
+bool ubloxTakeReport(char *out, size_t n)
+{
+    if (!ubxReportReady.exchange(false))
+        return false;
+    snprintf(out, n, "u-blox receiver%s%s on ESP32 RX %d / TX %d at %lu baud; configuration: %lu accepted, %lu rejected%s%s",
+             ubxVersion[0] ? " " : "", ubxVersion, pinPair ? PIN_GNSS_RX_ALT : PIN_GNSS_RX, pinPair ? PIN_GNSS_TX_ALT : PIN_GNSS_TX,
+             (unsigned long)receiverBaud.load(), (unsigned long)ubxAcks, (unsigned long)ubxNaks, ubxNaks ? " - " : "", ubxNakNames);
+    return true;
+}
+const char *ubloxVersion() { return ubxVersion; }
+#endif
+
 void receiverSetup1()
 {
     // Wait until the main loop has loaded the settings
@@ -250,9 +351,13 @@ void receiverSetup1()
         pinMode(PIN_GNSS_RESET, OUTPUT);
         digitalWrite(PIN_GNSS_RESET, HIGH); // LG290P running (low = held in reset)
     }
+#if BOARD_UBLOX
+    uartOpen(UBX_BAUD, 0); // where this firmware leaves it; otherwise found by the search below
+#else
     Serial1.setRxBufferSize(16384);
     Serial1.begin(cfg.uartBaud, SERIAL_8N1, PIN_GNSS_RX, PIN_GNSS_TX);
     receiverBaud.store(cfg.uartBaud);
+#endif
     baudSince = millis();
     parseFilter();
 }
@@ -260,6 +365,30 @@ void receiverSetup1()
 // No valid NMEA at the configured speed: try the LG290P's other speeds in turn until sentences arrive
 static void autoBaud()
 {
+#if BOARD_UBLOX
+    // u-blox: both UART pin pairs at the usual ZED-F9 speeds (38400 is its default), until NMEA arrives. Searched
+    // again whenever NMEA stops for 5 s (receiver power-cycled without its backup battery, or reset).
+    static const uint32_t urates[] = {115200, 38400, 9600, 230400, 460800};
+    const int combos = 2 * (int)(sizeof(urates) / sizeof(urates[0]));
+    const uint32_t now = millis();
+    if (lastSentenceMs && now - lastSentenceMs < 5000)
+        return;
+    if (now - baudSince < 2500)
+        return;
+    if (lastSentenceMs)
+    {
+        lastSentenceMs = 0; // lost: search again, and configure again once found
+        ubxStage = 0;
+    }
+    baudIndex = (baudIndex + 1) % combos;
+    uartOpen(urates[baudIndex / 2], baudIndex % 2);
+    // ask for the version too: a receiver set to send UBX only (no NMEA) is then found by its reply
+    uint8_t f[8];
+    size_t fn = ubxMonVerPoll(f, sizeof(f));
+    Serial1.write(f, fn);
+    baudSince = now;
+    return;
+#endif
     static const uint32_t rates[] = {460800, 115200, 921600, 230400, 9600};
     if (nmea.good() || millis() - baudSince < 3000)
         return;
@@ -274,6 +403,9 @@ static size_t prfsmLen = 0;
 
 static void handleSentence(const char *s, size_t len)
 {
+#if BOARD_UBLOX
+    lastSentenceMs = millis();
+#endif
     diagC1 = 30;
     stats.nmeaGood.store(nmea.good());
     char id[NMEA_ID_MAX];
@@ -347,6 +479,12 @@ static void handleSentence(const char *s, size_t len)
             sharedGga.info = g;
             sharedGga.atMs = now;
             bool sample = tracker.update(now, g, m, eh, ev, refPoint, ci, speed);
+            epochNow.method = m;
+            epochNow.estH = eh;
+            epochNow.estV = ev;
+            epochNow.corr = ci;
+            epochNow.sats = g.sats;
+            epochNow.atMs = now;
             LadderInput li;
             li.nowMs = now;
             li.sourceAvailable = ladderSourceAvailable.load();
@@ -402,6 +540,10 @@ void receiverLoop1()
     if (core1Halt.load())
         return;
     autoBaud();
+#if BOARD_UBLOX
+    if (ubxStage == 0 && lastSentenceMs)
+        ubloxConfigure(); // NMEA found: configure the receiver once
+#endif
     uint8_t buf[512];
 
     // Receiver -> NMEA extraction (the receiver's own USB channel is port B of the CH342, not through the ESP32)
@@ -414,8 +556,20 @@ void receiverLoop1()
         stats.uartRxBytes += n;
         diagC1 = 20;
         for (int i = 0; i < n; i++)
+        {
+#if BOARD_UBLOX
+            const UbxEvent ev = ubx.feed(buf[i]);
+            if (ev != UBX_NONE)
+                lastSentenceMs = millis(); // any valid UBX frame also proves the link
+            if (ev == UBX_MONVER)
+            {
+                strlcpy(ubxVersion, ubx.version(), sizeof(ubxVersion));
+                ubxReportReady = true;
+            }
+#endif
             if (nmea.feed(buf[i]))
                 handleSentence(nmea.sentence(), nmea.length());
+        }
         diagC1 = 21;
         stats.nmeaBad.store(nmea.bad());
     }

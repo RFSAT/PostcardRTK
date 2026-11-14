@@ -18,6 +18,12 @@ static void led(bool on)
         digitalWrite(PIN_LED, on == LED_ACTIVE_HIGH ? HIGH : LOW);
 }
 
+static void errLed(bool on)
+{
+    if (PIN_ERR_LED >= 0)
+        digitalWrite(PIN_ERR_LED, on == LED_ACTIVE_HIGH ? HIGH : LOW);
+}
+
 static void rgb(uint8_t r, uint8_t g, uint8_t b)
 {
     if (PIN_RGB < 0)
@@ -34,6 +40,9 @@ void indicatorsSetup()
     if (PIN_LED >= 0)
         pinMode(PIN_LED, OUTPUT);
     led(false);
+    if (PIN_ERR_LED >= 0)
+        pinMode(PIN_ERR_LED, OUTPUT);
+    errLed(false);
     if (PIN_BUTTON >= 0)
         pinMode(PIN_BUTTON, INPUT_PULLUP);
     rgb(0, 0, 0);
@@ -42,6 +51,7 @@ void indicatorsSetup()
 void indicatorsOff()
 {
     led(false);
+    errLed(false);
     rgb(0, 0, 0);
 }
 
@@ -108,9 +118,16 @@ static void button()
 
 void indicatorsLoop()
 {
-    if (PIN_LED < 0 && PIN_RGB < 0 && PIN_BUTTON < 0)
+    if (PIN_LED < 0 && PIN_RGB < 0 && PIN_BUTTON < 0 && PIN_ERR_LED < 0)
         return;
     button();
     wifiLed();
     methodColour();
+    if (PIN_ERR_LED >= 0)
+    {
+        // error LED (V7): on while there is no position or no data from the receiver
+        const uint32_t at = currentMethodMs.load();
+        const bool ok = at && millis() - at < 5000 && (Method)currentMethod.load() != M_NONE;
+        errLed(!ok);
+    }
 }
