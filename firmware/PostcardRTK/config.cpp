@@ -381,6 +381,13 @@ bool configLoad()
         if (!configFromJson(POSTCARDRTK_DEFAULT_CONFIG, err))
             dbg("[cfg] built-in defaults rejected: %s\r\n", err.c_str());
     }
+#if defined(BOARD_V7)
+    // The private defaults are shared by all boards: on V7 keep its own name and Bluetooth Classic only (no PSRAM).
+    // A settings file saved on the unit still overrides these.
+    if (cfg.deviceName == "PostcardRTK")
+        cfg.deviceName = "RFSAT-V7";
+    cfg.bt = "spp";
+#endif
 #endif
 
     File f = LittleFS.open(CFG_FILE, "r");
