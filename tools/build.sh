@@ -8,8 +8,8 @@
 #     the settings).
 #   BOARD=c6: Waveshare LG290P module + ESP32-C6 SuperMini, variant V2 (4 MB flash, Bluetooth LE only, console on
 #     the C6's own USB). Output in build/c6/, same two files.
-#   BOARD=v7: AgriBIT receiver, ESP32-DevKitC + u-blox ZED-F9R, variant V7 (4 MB flash, no PSRAM, optional OLED; needs
-#     the U8g2 library). Output in build/v7/, same two files.
+#   BOARD=f9r: AgriBIT receiver, ESP32-DevKitC + u-blox ZED-F9R, F9R build (4 MB flash, no PSRAM, optional OLED; needs
+#     the U8g2 library). Output in build/f9r/, same two files.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 tools/embed_web.py
@@ -32,18 +32,18 @@ c6)
   cp firmware/partitions_c6.csv "$SKETCH/partitions.csv"
   FQBN="esp32:esp32:esp32c6:FlashSize=4M,PartitionScheme=custom,CDCOnBoot=cdc,DebugLevel=none"
   ;;
-v7)
-  OUT=build/v7
+f9r)
+  OUT=build/f9r
   # AgriBIT receiver: ESP32-DevKitC (WROOM-32D, 4 MB, no PSRAM) + u-blox ZED-F9R; same 4 MB partition table as the C6
-  SKETCH=build/v7-src/PostcardRTK
-  rm -rf build/v7-src && mkdir -p build/v7-src
+  SKETCH=build/f9r-src/PostcardRTK
+  rm -rf build/f9r-src && mkdir -p build/f9r-src
   cp -r firmware/PostcardRTK "$SKETCH"
   cp firmware/partitions_c6.csv "$SKETCH/partitions.csv"
-  FLAGS="$FLAGS -DBOARD_V7"
+  FLAGS="$FLAGS -DBOARD_F9R"
   FQBN="esp32:esp32:esp32:FlashSize=4M,PartitionScheme=custom,PSRAM=disabled,DebugLevel=none"
   ;;
 *)
-  echo "BOARD must be postcard, c6 or v7" >&2
+  echo "BOARD must be postcard, c6 or f9r" >&2
   exit 1
   ;;
 esac
@@ -60,7 +60,7 @@ n = (len(d.rstrip(b"\xff")) + 4095) // 4096 * 4096
 open(p, "wb").write(d[:n])
 print(f"merged image trimmed to {n} bytes")
 PY
-rm -rf build/c6-src build/v7-src
+rm -rf build/c6-src build/f9r-src
 # The application must fit its partition (the board menu reports the 16 MB default for custom tables)
 APP=$(stat -c %s "$OUT/PostcardRTK.ino.bin")
 MAX=$([ "$BOARD" = postcard ] && echo $((0x600000)) || echo $((0x2C0000)))

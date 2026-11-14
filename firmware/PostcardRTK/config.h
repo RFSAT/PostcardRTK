@@ -27,8 +27,8 @@ struct NtripSource
 
 struct Config
 {
-#if defined(BOARD_V7)
-    String deviceName = "RFSAT-V7";
+#if defined(BOARD_F9R)
+    String deviceName = "RFSAT-F9R";
 #else
     String deviceName = "PostcardRTK";
 #endif
@@ -71,8 +71,8 @@ struct Config
     float benchAlt = 0;
 
     // Outputs
-#if defined(BOARD_V7)
-    String bt = "spp";   // V7 (no PSRAM): Bluetooth Classic only by default, as the original AgriBIT receiver; both possible
+#if defined(BOARD_F9R)
+    String bt = "spp";   // F9R (no PSRAM): Bluetooth Classic only by default, as the original AgriBIT receiver; both possible
 #else
     String bt = "both";  // spp | ble | both | off (Android apps use SPP, iPhone apps BLE)
 #endif

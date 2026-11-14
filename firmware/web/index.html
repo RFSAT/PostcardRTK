@@ -354,11 +354,11 @@ body.ublox .lgonly{display:none!important}
 <div id="tip" role="tooltip" hidden></div>
 <script>
 // ESP32-C6 boards (V2) have Bluetooth LE only: offer BLE and Off, and show a stored SPP choice as BLE
-// AgriBIT receiver (V7): u-blox ZED-F9R. No Galileo HAS; the Quectel-only controls are hidden (class lgonly).
+// AgriBIT receiver (F9R): u-blox ZED-F9R. No Galileo HAS; the Quectel-only controls are hidden (class lgonly).
 function ubloxText(){
   const intro=[...document.querySelectorAll("p")].find(x=>x.textContent.startsWith("SparkFun RTK Postcard (ESP32"));
   if(intro)intro.textContent="AgriBIT receiver (ESP32 with a u-blox ZED-F9R multi-band receiver with built-in IMU for dead reckoning). It picks the best positioning method by itself: RTK with corrections over Wi-Fi from up to four NTRIP sources (or from a phone app over Bluetooth), then SBAS (EGNOS), then GNSS only, and checks regularly whether a better one has become available. NMEA goes to Bluetooth clients.";
-  const h=[...document.querySelectorAll("h2")].find(x=>x.textContent.startsWith("PostcardRTK"));if(h)h.textContent="RFSAT V7 · RTK GNSS rover";
+  const h=[...document.querySelectorAll("h2")].find(x=>x.textContent.startsWith("PostcardRTK"));if(h)h.textContent="RFSAT F9R · RTK GNSS rover";
 }
 function fixBt(){if(!window.bleOnly)return;const b=document.getElementById("bt");const v=b.value;
   b.innerHTML='<option value="ble">BLE UART (Android, iOS)</option><option value="off">Off</option>';b.value=(v==="off")?"off":"ble";}

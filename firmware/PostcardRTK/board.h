@@ -1,17 +1,17 @@
 // board.h - what differs between the boards PostcardRTK runs on. One source, one version for:
-//  - AgriBIT receiver: ESP32-DevKitC + u-blox ZED-F9R stack: variant V7 (build flag BOARD_V7)
+//  - AgriBIT receiver: ESP32-DevKitC + u-blox ZED-F9R stack: F9R build (build flag BOARD_F9R)
 //  - SparkFun RTK Postcard (ESP32-PICO-MINI-02, LG290P on the board): variant V3 of the RFSAT RTK documentation
 //  - Waveshare LG290P module + ESP32-C6 SuperMini joined by a UART: variant V2 (and V6 with the C6)
 // The target is chosen by the build (tools/build.sh, BOARD=postcard | c6), not by a setting.
 #pragma once
 #include <sdkconfig.h>
 
-#if defined(BOARD_V7)
-// AgriBIT receiver (variant V7): ESP32-DevKitC V4 (ESP32-WROOM-32D, 4 MB flash, no PSRAM) stacked on the ESP_BG95 (Quectel
+#if defined(BOARD_F9R)
+// AgriBIT receiver (F9R build): ESP32-DevKitC V4 (ESP32-WROOM-32D, 4 MB flash, no PSRAM) stacked on the ESP_BG95 (Quectel
 // BG95-M3 modem, SD card) and ESP_F9x (u-blox ZED-F9R) boards. Pin map from AgriBIT D3.3 section 4.7.18.
 #define BOARD_C6 0
 #define BOARD_UBLOX 1 // u-blox receiver (UBX configuration) instead of the Quectel LG290P
-#define BOARD_NAME "ZED-F9R + ESP32 (V7)"
+#define BOARD_NAME "ZED-F9R + ESP32 (F9R)"
 // The ZED-F9R UART is on one of the stack's two UARTs; the receiver task tries both (with several speeds) and keeps
 // the one where NMEA arrives. PIN_GNSS_RX / TX are the first pair.
 static const int PIN_GNSS_RX = 16;     // ESP32 RX <- (UART2 of the stack)
@@ -66,7 +66,7 @@ static const bool LED_ACTIVE_HIGH = true;
 #endif
 
 // Defaults for boards without these parts
-#if !defined(BOARD_V7)
+#if !defined(BOARD_F9R)
 static const int PIN_GNSS_RX_ALT = -1;
 static const int PIN_GNSS_TX_ALT = -1;
 static const int PIN_ERR_LED = -1;

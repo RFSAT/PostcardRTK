@@ -249,7 +249,7 @@ void receiverInitShared()
     ladderConfigure();
 }
 
-// ---- u-blox receiver (V7): which UART and speed it is on, and its start-up configuration ----
+// ---- u-blox receiver (F9R): which UART and speed it is on, and its start-up configuration ----
 #if BOARD_UBLOX
 static UbxParser ubx;
 static uint32_t lastSentenceMs = 0;         // last valid NMEA sentence

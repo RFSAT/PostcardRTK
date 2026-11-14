@@ -125,7 +125,7 @@ void indicatorsLoop()
     methodColour();
     if (PIN_ERR_LED >= 0)
     {
-        // error LED (V7): on while there is no position or no data from the receiver
+        // error LED (F9R): on while there is no position or no data from the receiver
         const uint32_t at = currentMethodMs.load();
         const bool ok = at && millis() - at < 5000 && (Method)currentMethod.load() != M_NONE;
         errLed(!ok);

@@ -1,4 +1,4 @@
-// ublox.h - the few UBX (u-blox binary protocol) pieces the V7 firmware needs: frames, CFG-VALSET to configure the
+// ublox.h - the few UBX (u-blox binary protocol) pieces the F9R firmware needs: frames, CFG-VALSET to configure the
 // ZED-F9R at start-up, MON-VER for its firmware version, and a parser that picks UBX frames (ACK/NAK, MON-VER) out
 // of a stream mixed with NMEA. Portable (no Arduino calls), unit-tested on the PC.
 // Reference: u-blox ZED-F9R Interface Description (configuration keys CFG-xxx).

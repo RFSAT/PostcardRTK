@@ -2,7 +2,7 @@
 #include "display.h"
 #include "board.h"
 
-#if defined(BOARD_V7)
+#if defined(BOARD_F9R)
 #include "config.h"
 #include "net.h"
 #include "ntrip.h"
@@ -61,7 +61,7 @@ void displaySetup(const char *version)
     const char *t2 = "L I M I T E D";
     oled.drawStr((128 - oled.getStrWidth(t2)) / 2, 31, t2);
     oled.drawHLine(14, 35, 100);
-    oled.drawStr((128 - oled.getStrWidth("RTK  V7")) / 2, 48, "RTK  V7");
+    oled.drawStr((128 - oled.getStrWidth("RTK F9R")) / 2, 48, "RTK F9R");
     char v[24];
     snprintf(v, sizeof(v), "v%s", version);
     oled.drawStr((128 - oled.getStrWidth(v)) / 2, 61, v);

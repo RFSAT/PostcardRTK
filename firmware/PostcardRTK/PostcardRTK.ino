@@ -11,7 +11,7 @@
 //
 // Boards (board.h, tools/build.sh): SparkFun RTK Postcard (ESP32, 16 MB flash, PSRAM, partitions as SparkFun RTK
 // Everywhere), the ESP32-C6 SuperMini with the Waveshare LG290P module (4 MB flash, single core, BLE only), and the
-// AgriBIT receiver (V7): ESP32-DevKitC + u-blox ZED-F9R (4 MB flash, no PSRAM, OLED).
+// AgriBIT receiver (F9R): ESP32-DevKitC + u-blox ZED-F9R (4 MB flash, no PSRAM, OLED).
 
 #include "config.h"
 #include "console.h"
@@ -144,7 +144,7 @@ void setup()
     bootReason = resetReasonName(rr);
     diagBoot((int)rr);
     indicatorsSetup();
-    displaySetup(POSTCARDRTK_VERSION); // V7 OLED: boot screen (RFSAT Limited, version)
+    displaySetup(POSTCARDRTK_VERSION); // F9R OLED: boot screen (RFSAT Limited, version)
     dbg("\r\n[boot] PostcardRTK %s (" BOARD_NAME "), last reset: %s\r\n[boot] previous run: %s\r\n", POSTCARDRTK_VERSION, bootReason,
         diagText().c_str());
     diagC0 = 101;

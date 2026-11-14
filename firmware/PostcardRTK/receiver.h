@@ -32,7 +32,7 @@ void getEpochNow(EpochNow &out);
 bool ladderTakeChange(char *reason, size_t n, LadderState &st);
 
 #if BOARD_UBLOX
-// V7: a summary of where the u-blox receiver was found and how its configuration went (once per configuration, or when
+// F9R: a summary of where the u-blox receiver was found and how its configuration went (once per configuration, or when
 // its version arrives); for the event log
 bool ubloxTakeReport(char *out, size_t n);
 const char *ubloxVersion(); // e.g. "HPS 1.30, protocol 33.30, ZED-F9R"; empty until known
